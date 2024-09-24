@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Billingo & WooCommerce Official Plugin
- * Version: 3.6.3
+ * Version: 3.6.4
  * Requires at least: 5.3
  * Requires PHP: 5.6
  * GitHub Plugin URI: https://github.com/octonull/webshop-plugins-woocommerce-public

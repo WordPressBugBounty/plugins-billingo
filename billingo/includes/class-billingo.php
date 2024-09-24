@@ -810,7 +810,7 @@ class WC_Billingo
             // Can't use line_tax directly because of the rounding issue, this should solve it. (product with gross 10 huf and 5% tax shows 0 in line_tax, should be 0.476.)
             $line_tax = 0.0;
             foreach ($item['line_tax_data']['total'] as $tax_id => $tax_amount) {
-                $line_tax += $tax_amount;
+                $line_tax += (float)$tax_amount;
             }
 
             if ($line_tax) { // should solve is_vat_exempt issue, bypass the normal tax class if no tax was used
@@ -826,11 +826,11 @@ class WC_Billingo
                 $vat_rule = PWSBillingo::applyVatRule(0, false);
             }
 
-            $erase_code = get_option('wc_billingo_is_generate_erase_code', false);
+            $erase_code = 'pa_' . get_option('wc_billingo_is_generate_erase_code', false);
+            $product = wc_get_product($item->get_product_id());
             $erase_code_value = false;
-
-            if ($erase_code && $order->get_meta($erase_code, true)) {
-                $erase_code_value = $order->get_meta($erase_code, true);
+            if ($product->get_attribute($erase_code)) {
+                $erase_code_value = true;
             }
 
             $product_item = [

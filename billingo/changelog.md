@@ -1,4 +1,7 @@
 # Changelog
+-**3.6.4** - 2024-09-24
+- Added data erease code fix. glodal attribute
+
 -**3.6.3** - 2024-08-12
 - Added data erease code fix.
 
