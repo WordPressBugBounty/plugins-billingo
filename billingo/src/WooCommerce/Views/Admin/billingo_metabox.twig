@@ -1,0 +1,79 @@
+{% set typeNames = {
+    'invoice': 'Számla',
+    'proforma': 'Díjbekérő',
+    'draft': 'Piszkozat',
+} %}
+<div style="text-align:center; margin-top: 10px">
+    {% if isApiKeyMissing %}
+        {{ 'A számlakészítéshez meg kell adnod a Billingo API kulcsokat a Woocommerce beállításokban!'
+        | esc_html_translate }}
+    {% else %}
+        <div id="wc-billingo-messages"></div>
+        {% if document %}
+            <p style="margin-bottom: 10px">
+                {{ typeNames[document['type']] }}{{ ' sikeresen létrehozva.' | esc_html_translate }}
+            </p>
+            <p style="margin-bottom: 10px">
+                {{ typeNames[document['type']] }}{{ ' sorszáma:' | esc_html_translate }}{{ document['invoice_number'] }}
+            </p>
+            <div style="margin: 10px">
+                <a href="{{ link }}"
+                   class="button button-primary"
+                   target="_blank">
+                    {{ typeNames[document['type']] }}{{ ' megtekintése' | esc_html_translate }}
+                </a>
+            </div>
+            {% if document['type'] == 'invoice' %}
+                <div>
+                    <a href="#"
+                       id="wc_billingo_storno"
+                       data-order="{{ orderId }}"
+                       data-nonce="{{ nonce | esc_attr  }}"
+                       class="button button-primary">{{ 'Sztornózás' | esc_html_translate }}
+                    </a>
+                </div>
+            {% endif %}
+        {% else %}
+            <div>
+                <a href="#"
+                   id="wc_billingo_generate"
+                   data-order="{{ orderId }}"
+                   data-nonce="{{ nonce | esc_attr  }}"
+                   class="button button-primary">{{ 'Számlakészítés' | esc_html_translate }}
+                </a>
+                <p style="font-size: 11px">
+                    {{ 'Alapértelmezett típus: ' | esc_html_translate }}{{ defaultDocumentType }}
+                </p>
+                <a href="#" id="wc_billingo_options">{{ 'Opciók ' | esc_html_translate }}</a>
+            </div>
+            <div id="wc_billingo_options_form" style="display:none;">
+                <div class="fields">
+                    <h4>{{ 'Megjegyzés' | esc_html_translate }}</h4>
+                    <input type="text"
+                           id="wc_billingo_invoice_note"
+                           value="{{ wcData['note'] | esc_attr  }}" />
+                    <h4>{{ 'Fizetési határidő (nap)' | esc_html_translate }}</h4>
+                    <input type="number"
+                           step="1"
+                           id="wc_billingo_invoice_deadline" />
+
+                    <h4>{{ 'Teljesítési dátum' | esc_html_translate }}</h4>
+                    <input type="text"
+                           class="date-picker"
+                           id="wc_billingo_invoice_completed"
+                           maxlength="10"
+                           value="{{ wcData['date'] | esc_attr  }}"
+                           pattern="[0-9]{4}-(0[1-9]|1[012])-(0[1-9]|1[0-9]|2[0-9]|3[01])" />
+
+                    <h4>{{ 'Számla típusa' | esc_html_translate }}</h4>
+
+                    <select name="wc_billingo_invoice_type" id="wc_billingo_invoice_type">
+                        <option value="invoice" {{ selected(defaultDocumentType, 'invoice') }}>{{ typeNames['invoice'] | esc_html_translate }}</option>
+                        <option value="proforma" {{ selected(defaultDocumentType, 'proforma') }}>{{ typeNames['proforma'] | esc_html_translate }}</option>
+                        <option value="draft" {{ selected(defaultDocumentType, 'draft') }}>{{ typeNames['draft'] | esc_html_translate }}</option>
+                    </select>
+                </div>
+            </div>
+        {% endif %}
+    {% endif %}
+</div>

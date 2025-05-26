@@ -1,0 +1,642 @@
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style>
+    .billingo-metabox-holder {
+        background-color: #FFF;
+        height: auto;
+        width: 100%;
+        min-width: min-content;
+        min-height: min-content;
+        box-sizing: border-box;
+    }
+    
+    .billingo-postbox {
+        padding: 20px;
+        background: #FFFFFF;
+        height: auto;
+        min-height: min-content;
+        min-width: min-content;
+        box-sizing: border-box;
+        width: 100%;
+    }
+
+    .billingo-settings-title-tax {
+        width: 220;
+        height: 30;
+        gap: 10px;
+
+        font-family: Arial;
+        font-weight: 700;
+        font-size: 18px;
+        line-height: 100%;
+        letter-spacing: 0%;
+
+        color: #10355A;
+
+    }
+
+    .billingo-tax-settings-select {
+        /* Auto layout */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 0px;
+        gap: 5px;
+
+        width: 415px !important;
+        max-width: 420px !important;
+        height: 30px;
+
+
+        /* Inside auto layout */
+        flex: none;
+        order: 1;
+        flex-grow: 1;
+
+
+    }
+
+    .billingo-tax-settings-field-container {
+        vertical-align: middle !important;
+    }
+
+    .billingo-field-name-right-column {
+        height: 16px;
+
+        font-family: 'Arial';
+        font-style: normal;
+        font-weight: 700;
+        font-size: 14px;
+        line-height: 16px;
+        /* identical to box height */
+
+        /* mg/mg-d */
+        color: #0C2542;
+
+
+        /* Inside auto layout */
+
+        order: 0;
+        flex-grow: 1;
+        white-space: nowrap;
+    }
+
+    .billingo-field-name {
+        /* Bankszámla HUF */
+
+        width: 150px;
+        height: 16px;
+
+        font-family: 'Arial';
+        font-style: normal;
+        font-weight: 700;
+        font-size: 14px;
+        line-height: 16px;
+        /* identical to box height */
+
+        /* mg/mg-d */
+        color: #0C2542;
+
+
+        /* Inside auto layout */
+        flex: none;
+        order: 0;
+        flex-grow: 1;
+
+
+    }
+
+    .billingo-field-description-italic {
+        width: 415px;
+        height: 16px;
+        margin-top: 5px !important;
+
+        font-family: 'Arial';
+        font-style: italic;
+        font-weight: 400;
+        font-size: 14px;
+        line-height: 16px;
+        /* identical to box height */
+
+        /* mg3/mg3 text light */
+        color: #8B9FB0;
+        text-decoration: none;
+
+        /* Inside auto layout */
+        flex: none;
+        order: 0;
+        flex-grow: 0;
+
+    }
+
+    .billingo-right-column-checkbox-aligner {
+        text-align: right;
+    }
+
+    .billingo-left-column-container {
+
+        /* Auto layout */
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 0px;
+        gap: 30px;
+
+        width: 585px;
+        height: auto;
+
+
+        /* Inside auto layout */
+        flex: 0 0 585px; /* Fix width, not growing */
+        order: 0;
+
+    }
+
+    .billingo-right-column-container {
+
+        /* Auto layout */
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 0px;
+        gap: 30px;
+
+        width: 585px;
+        height: auto;
+
+
+        /* Inside auto layout */
+        flex: 0 0 585px; /* Fix width, not growing */
+        order: 1;
+        padding-left: 20px;
+
+    }
+
+    .billingo-field-description-italic-right-column {
+        width: 514px;
+        height: 16px;
+        margin-top: 5px !important;
+
+        font-family: 'Arial';
+        font-style: italic;
+        font-weight: 400;
+        font-size: 14px;
+        line-height: 16px;
+        /* identical to box height */
+
+        /* mg3/mg3 text light */
+        color: #8B9FB0;
+        text-decoration: none;
+
+        /* Inside auto layout */
+        flex: none;
+        order: 0;
+        flex-grow: 0;
+        
+    }
+  
+    .billingo-field-name-right-column {
+        height: 16px;
+
+        font-family: 'Arial';
+        font-style: normal;
+        font-weight: 700;
+        font-size: 14px;
+        line-height: 16px;
+        /* identical to box height */
+
+        /* mg/mg-d */
+        color: #0C2542;
+
+
+        /* Inside auto layout */
+        
+        order: 0;
+        flex-grow: 1;
+        white-space: nowrap;
+    }
+
+
+    .billingo-field-description-italic-right-column {
+        width: 514px;
+        height: 16px;
+        margin-top: 5px !important;
+
+        font-family: 'Arial';
+        font-style: italic;
+        font-weight: 400;
+        font-size: 14px;
+        line-height: 16px;
+        /* identical to box height */
+
+        /* mg3/mg3 text light */
+        color: #8B9FB0;
+        text-decoration: none;
+
+        /* Inside auto layout */
+        flex: none;
+        order: 0;
+        flex-grow: 0;
+        
+    }
+
+    .woocommerce-save-button.components-button.is-primary {
+        display: none !important;
+    }
+
+    .billingo-primary-button{
+        /* type=Primary */
+
+        /* Auto layout */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 7px 10px;
+        gap: 4px;
+
+        width: fit-content;
+        height: fit-content;
+        left: 20px;
+        top: 20px;
+        text-decoration: none !important;
+
+        /* m/m main */
+        background: #0C4FEB;
+        border-radius: 3px;
+
+        /* Title */
+
+        font-family: 'Arial';
+        font-style: normal;
+        font-weight: 700;
+        font-size: 14px;
+        line-height: 16px;
+        /* identical to box height */
+
+        color: #FFFFFF;
+        
+        /* Transition for smooth hover effect */
+        transition: background-color 0.3s ease, transform 0.2s ease;
+
+        /* Inside auto layout */
+        flex: none;
+        order: 0;
+        align-self: stretch;
+        flex-grow: 0;
+    }
+    
+    .billingo-primary-button:hover {
+        background-color: #0A43CC; /* Slightly darker shade when hovering */
+        transform: translateY(-2px); /* Slight movement upward on hover */
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Add shadow on hover */
+    }
+    
+    /* Fix for the submit button positioning */
+    .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 30px;
+        margin-bottom: 20px;
+        justify-content: flex-start; /* Left alignment */
+        width: 100%;
+    }
+    
+    .submit {
+        clear: both;
+        width: 100%;
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
+    }
+    
+    /* New media query for screens above 1440px */
+    @media screen and (min-width: 1441px) {
+        .billingo-right-column-container {
+            max-width: 800px;
+            padding-left: 0;
+        }
+    }
+    
+    /* Specific fix for screen sizes between 1200px and 1440px */
+    @media screen and (min-width: 1201px) and (max-width: 1440px) {
+        .billingo-right-column-container {
+            padding-left: 0;
+        }
+    }
+    
+    /* Responsive CSS modifications */
+    @media screen and (max-width: 1200px) {
+        .billingo-metabox-holder {
+            height: auto;
+        }
+        
+        .billingo-left-column-container,
+        .billingo-right-column-container {
+            width: 100%;
+            height: auto;
+            padding: 0;
+            margin-bottom: 30px;
+        }
+        
+        .billingo-right-column-container {
+            padding-left: 0;
+        }
+    }
+    
+    @media screen and (max-width: 782px) {
+        .billingo-metabox-holder {
+            padding: 0 10px;
+            width: 100%;
+            box-sizing: border-box;
+            overflow-x: hidden;
+        }
+        
+        .billingo-postbox {
+            padding: 15px 10px;
+            width: 100% !important;
+            box-sizing: border-box;
+            overflow-x: hidden;
+        }
+        
+        .row {
+            display: block;
+            width: 100%;
+        }
+        
+        .billingo-settings-title-tax {
+            margin: 0 auto 20px auto;
+            text-align: center;
+            display: block;
+        }
+        
+        /* Form table adjustments */
+        .form-table, 
+        .form-table tbody {
+            display: block;
+            width: 100%;
+        }
+        
+        .form-table tr {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 15px;
+            width: 100%;
+        }
+        
+        /* Increase bottom margin for right column table rows */
+        .billingo-right-column-container .form-table tr {
+            margin-bottom: 30px;
+        }
+        
+        .form-table th,
+        .form-table td {
+            display: block;
+            width: 100% !important;
+            box-sizing: border-box;
+            padding: 5px 0;
+        }
+        
+        /* Fix input widths */
+        .billingo-tax-settings-select {
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box;
+        }
+        
+        /* Fix column layout */
+        .column {
+            width: 100% !important;
+            flex: none !important;
+        }
+        
+        /* Description texts */
+        .billingo-field-description-italic,
+        .billingo-field-description-italic-right-column {
+            width: 100%;
+            height: auto;
+            line-height: 1.4;
+            margin: 5px 0 15px 0 !important;
+        }
+        
+        /* Fix checkbox alignment */
+        .billingo-right-column-checkbox-aligner {
+            text-align: left;
+            margin-top: 5px;
+        }
+        
+        /* Field labels */
+        .billingo-field-name,
+        .billingo-field-name-right-column {
+            width: auto;
+            margin-bottom: 8px;
+            display: block;
+        }
+        
+        /* Save button */
+        .billingo-primary-button {
+            width: 100%;
+        }
+    }
+    
+    /* Adjustments for screens below 680px */
+    @media screen and (max-width: 680px) {
+        .billingo-metabox-holder {
+            padding: 0;
+            width: 100%;
+            overflow-x: hidden;
+        }
+        
+        .billingo-postbox {
+            padding: 15px 8px;
+            margin: 0;
+            width: 100% !important;
+            box-sizing: border-box;
+            overflow-x: hidden;
+        }
+        
+        .row {
+            margin: 0;
+            width: 100%;
+        }
+        
+        .inside {
+            padding: 0;
+            margin: 0;
+        }
+        
+        .form-table td, 
+        .form-table th {
+            padding: 10px 0;
+        }
+    }
+    
+    /* Additional small screen adjustments */
+    @media screen and (max-width: 480px) {
+        .billingo-postbox {
+            padding: 10px 5px;
+        }
+    }
+
+</style>
+
+<div class="billingo-metabox-holder">
+    <div class="billingo-postbox">
+        <h2 class="billingo-settings-title-tax">{{ 'ÁFA Felülírási Beállítások'|esc_html_translate }}</h2>
+        <div class="inside">
+            <div class="row" style="display: flex; gap: 60px;">
+                <div class="column billingo-left-column-container">
+                    <table class="form-table">
+                        <tbody>
+                            <tr valign="top">
+                                <th scope="row">
+                                    <label class="billingo-field-name" for="wc_billingo_tax_override">{{ 'ÁFA felülírás'|esc_html_translate }}</label>
+                                </th>
+                                <td class="forminp-select">
+                                    <select class="billingo-tax-settings-select" name="wc_billingo_tax_override"
+                                        id="wc_billingo_tax_override" style="width:350px;">
+                                        <option value="0" {% if tax_override==0 %}selected="selected" {% endif %}>{{
+                                            'Nem'|esc_html_translate }}</option>
+                                        <option value="1" {% if tax_override==1 %}selected="selected" {% endif %}>{{
+                                            'Igen'|esc_html_translate }}</option>
+                                    </select>
+                                    <p class="billingo-field-description-italic">{{ 'ÁFA érték kicserélése globálisan.'|esc_html_translate }}</p>
+                                </td>
+                            </tr>
+
+                            <tr valign="top">
+                                <th scope="row">
+                                    <label class="billingo-field-name" for="wc_billingo_tax_override_choice">{{
+                                        'Felülírás típusa'|esc_html_translate }}</label>
+                                </th>
+                                <td class="forminp forminp-select">
+                                    <select class="billingo-tax-settings-select" name="wc_billingo_tax_override_choice"
+                                        id="wc_billingo_tax_override_choice" style="width:350px;">
+                                        <option value="1" {% if tax_override_choice==1 %}selected="selected" {% endif
+                                            %}>{{ 'ÁFA felülírás'|esc_html_translate }}</option>
+                                        <option value="0" {% if tax_override_choice==0 %}selected="selected" {% endif
+                                            %}>{{ '0%'|esc_html_translate }}</option>
+                                    </select>
+                                  
+                                </td>
+                            </tr>
+
+                            <tr valign="top">
+                                <th scope="row">
+                                    <label class="billingo-field-name" for="wc_billingo_tax_override_entitlements">{{
+                                        'ÁFA felülíráshoz tartozó jogcím'|esc_html_translate }}</label>
+                                </th>
+                                <td class="forminp forminp-select">
+                                    <select class="billingo-tax-settings-select"
+                                        name="wc_billingo_tax_override_entitlements"
+                                        id="wc_billingo_tax_override_entitlements" style="width:350px;">
+                                        {% for id, name in entitlements %}
+                                        <option value="{{ id }}" {% if id==selected_tax_override_entitlement
+                                            %}selected="selected" {% endif %}>{{ name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <p class="billingo-field-description-italic">{{ 'A választott ÁFA kulcshoz kötelező a megadott jogcímekből választani.'|esc_html_translate }}</p>
+                                </td>
+                            </tr>
+
+                            <tr valign="top">
+                                <th scope="row">
+                                    <label class="billingo-field-name" for="wc_billingo_tax_override_value">{{ 'ÁFA felülíráshoz tartozó érték'|esc_html_translate }}</label>
+                                </th>
+                                <td class="forminp forminp-select">
+                                    <select class="billingo-tax-settings-select" name="wc_billingo_tax_override_value"
+                                        id="wc_billingo_tax_override_value" style="width:350px;">
+                                        {% for id, name in taxes %}
+                                        <option value="{{ id }}" {% if id==selected_tax_override_value
+                                            %}selected="selected" {% endif %}>{{ name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <p class="billingo-field-description-italic">{{ 'A választott ÁFA kulcshoz kötelező a megadott értékekből választani.'|esc_html_translate }}</p>
+                                </td>
+                            </tr>
+
+                            <tr valign="top">
+                                <th scope="row">
+                                    <label class="billingo-field-name"
+                                        for="wc_billingo_tax_override_zero_entitlements">{{ '0% ÁFA felülíráshoz tartozó jogcím'|esc_html_translate }}</label>
+                                </th>
+                                <td class="forminp forminp-select">
+                                    <select class="billingo-tax-settings-select"
+                                        name="wc_billingo_tax_override_zero_entitlements"
+                                        id="wc_billingo_tax_override_zero_entitlements" style="width:350px;">
+                                        {% for id, name in entitlements %}
+                                        <option value="{{ id }}" {% if id==selected_tax_override_zero_entitlement
+                                            %}selected="selected" {% endif %}>{{ name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <p class="billingo-field-description-italic">{{ 'A választott ÁFA kulcshoz kötelező a megadott jogcímekből választani.'|esc_html_translate }}</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- next column -->
+                <div class="column billingo-right-column-container">
+                    <table class="form-table">
+                        <tbody>
+                            <tr valign="top">
+                                <th scope="row" class="billingo-tax-settings-field-container">
+                                    <label class="billingo-field-name-right-column" for="wc_billingo_tax_override_include_carrier">{{
+                                        'ÁFA felülírás szállítóknál is'|esc_html_translate }}</label>
+                                        <p class="billingo-field-description-italic-right-column">{{ 'A szállítási díjnál is
+                                            kicserélődjön-e az ÁFA. (Pl.: termékeknél legyen felülírás \'AM\'-re, de a
+                                            szállítás 27% maradjon, akkor NE jelölje be ezt a mezőt.)'|e }}</p>
+                                </th>
+                                <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
+                                    <fieldset>
+                                        <label for="wc_billingo_tax_override_include_carrier"
+                                            class="relative inline-flex items-center cursor-pointer">
+                                            <input name="wc_billingo_tax_override_include_carrier"
+                                                id="wc_billingo_tax_override_include_carrier" type="checkbox"
+                                                class="sr-only peer" value="1" {% if tax_override_include_carrier==1
+                                                %}checked="checked" {% endif %} />
+                                            <div
+                                                class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600">
+                                            </div>
+                                        </label>
+                                       
+                                    </fieldset>
+                                </td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row" class="billingo-tax-settings-field-container">
+                                    <label class="billingo-field-name-right-column" for="wc_billingo_always_add_carrier">{{
+                                        'Szállító mindig látszódjon'|esc_html_translate }}</label>
+                                        <p class="billingo-field-description-italic-right-column">{{ 'Bekapcsolva a szállító 0 összegű tételként is rákerül a számlára.'|esc_html_translate }}</p>
+                                </th>
+                                <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
+                                    <fieldset>
+                                        <label for="wc_billingo_always_add_carrier"
+                                            class="relative inline-flex items-center cursor-pointer">
+                                            <input name="wc_billingo_always_add_carrier"
+                                                id="wc_billingo_always_add_carrier" type="checkbox" class="sr-only peer"
+                                                value="1" {% if always_add_carrier==1 %}checked="checked" {% endif %} />
+                                            <div
+                                                class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600">
+                                            </div>
+                                        </label>
+                                       
+                                    </fieldset>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Moved submit button outside of the columns -->
+            <p class="submit">
+                <input type="hidden" name="subsection" value="vat" />
+                <button type="submit" class="billingo-primary-button" name="save"
+                    value="Mentés">{{ 'Mentés'|esc_html_translate }}</button>
+            </p>
+            
+        </div>
+
+    </div>
+</div>

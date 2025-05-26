@@ -1,0 +1,77 @@
+<?php
+
+namespace App\Billingo\Enums\Spending;
+
+enum CategoryEnum: string
+{
+    case ACCOUNTING_AND_AUDITING = 'accounting_and_auditing';
+    case ADVERTISEMENT = 'advertisement';
+    case BONUS = 'bonus';
+    case BUSINESS_INSURANCE = 'business_insurance';
+    case CLEANING = 'cleaning';
+    case CONSTRUCTION_AND_REPAIR = 'construction_and_repair';
+    case CONSULTING = 'consulting';
+    case CONSUMER_GOODS = 'consumer_goods';
+    case CONTRACTORS = 'contractors';
+    case DEVELOPMENT = 'development';
+    case DIVIDENDS = 'dividends';
+    case DONATIONS = 'donations';
+    case DUTY_TAXES = 'duty_taxes';
+    case EDUCATION_AND_TRAININGS = 'education_and_trainings';
+    case ELECTRICITY = 'electricity';
+    case ELECTRONICS = 'electronics';
+    case EMPLOYEE_BENEFITS = 'employee_benefits';
+    case ENTERTAINMENT = 'entertainment';
+    case EQUIPMENT_INSURANCE = 'equipment_insurance';
+    case FEDERAL_TAXES = 'federal_taxes';
+    case FEES = 'fees';
+    case FINANCIALS = 'financials';
+    case FINES = 'fines';
+    case GAS = 'gas';
+    case GAS_AND_FUEL = 'gas_and_fuel';
+    case HEALTH_INSURANCE = 'health_insurance';
+    case HUMAN_RESOURCES = 'human_resources';
+    case INCOME = 'income';
+    case INCOME_TAXES = 'income_taxes';
+    case INSURANCE = 'insurance';
+    case INTEREST = 'interest';
+    case INTERNET = 'internet';
+    case INVESTMENTS = 'investments';
+    case LEASING = 'leasing';
+    case LEGAL = 'legal';
+    case LIABILITY_INSURANCE = 'liability_insurance';
+    case LOANS = 'loans';
+    case MEALS = 'meals';
+    case MORTGAGE = 'mortgage';
+    case OFFICE_RENT = 'office_rent';
+    case ONLINE_SUBSCRIPTIONS = 'online_subscriptions';
+    case OTHER = 'other';
+    case OVERHEADS = 'overheads';
+    case PAYROLL_TAXES = 'payroll_taxes';
+    case PHONE = 'phone';
+    case PREPAYMENTS = 'prepayments';
+    case PROFESSIONAL_INSURANCE = 'professional_insurance';
+    case PROPERTY_TAXES = 'property_taxes';
+    case REAL_ESTATE = 'real_estate';
+    case RETURNS = 'returns';
+    case SALES = 'sales';
+    case SERVICE = 'service';
+    case SERVICE_AND_PARTS = 'service_and_parts';
+    case SHIPPING = 'shipping';
+    case SOFTWARE = 'software';
+    case STAFF_OUTSOURCING = 'staff_outsourcing';
+    case STOCK = 'stock';
+    case STORAGE = 'storage';
+    case SUPPLIES_AND_FURNITURE = 'supplies_and_furniture';
+    case TANGIBLE_ASSETS = 'tangible_assets';
+    case TAX_RETURN = 'tax_return';
+    case TAXES = 'taxes';
+    case TAXI = 'taxi';
+    case TRANSPORT = 'transport';
+    case TRAVEL = 'travel';
+    case UTILITIES = 'utilities';
+    case VAT = 'vat';
+    case VEHICLE_INSURANCE = 'vehicle_insurance';
+    case WAGES = 'wages';
+    case WATER = 'water';
+}

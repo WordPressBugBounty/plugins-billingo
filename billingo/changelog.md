@@ -1,4 +1,9 @@
 # Changelog
+-**4.0.0** - 2025.05.21
+- Új SDK
+- Új layout
+- További részletek itt : https://support.billingo.hu/content/2996830214
+
 -**3.6.4** - 2024-09-24
 - Added data erease code fix. glodal attribute
 

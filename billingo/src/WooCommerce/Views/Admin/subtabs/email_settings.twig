@@ -1,0 +1,832 @@
+<style>
+    .billingo-postbox {
+        padding: 20px;
+        background: #FFFFFF;
+       
+        min-width: min-content
+    }
+
+    .billingo-field-description-italic {
+        width: 244px;
+        height: 16px;
+
+        font-family: 'Arial';
+        font-style: italic;
+        font-weight: 400;
+        font-size: 14px;
+        line-height: 16px;
+        /* identical to box height */
+
+        /* mg3/mg3 text light */
+        color: #8B9FB0;
+        text-decoration: none;
+
+        /* Inside auto layout */
+        flex: none;
+        order: 0;
+        flex-grow: 0;
+
+    }
+
+
+    .billingo-email-settings-title {
+        /* Email Beállítások */
+
+        width: 200px;
+        height: 21px;
+
+        font-family: 'Arial';
+        font-style: normal;
+        font-weight: 700;
+        font-size: 18px;
+        line-height: 21px;
+        /* identical to box height */
+
+        /* mg/mg text */
+        color: #10355A;
+
+
+        /* Inside auto layout */
+        flex: none;
+        order: 0;
+        flex-grow: 0;
+
+
+    }
+
+
+
+    .billingo-field-name-email-settings {
+
+        height: 16px;
+
+        font-family: 'Arial';
+        font-style: normal;
+        font-weight: 700;
+        font-size: 14px;
+        line-height: 16px;
+        /* identical to box height */
+
+        /* mg/mg-d */
+        color: #0C2542;
+
+
+        /* Inside auto layout */
+        flex: none;
+        order: 0;
+        flex-grow: 1;
+
+    }
+
+
+    /* New div-based layout styles */
+    .email-settings-container {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .email-row {
+        display: flex;
+        align-items: flex-start;
+        margin-bottom: 20px;
+    }
+
+    .email-labels {
+        width: 250px;
+        padding-top: 10px;
+        min-width: 250px;
+    }
+
+    .email-label {
+        min-height: 33px;
+        margin-bottom: 0px;
+        padding-top: 7px;
+        width: 250px;
+        height: 40px;
+        gap: 5px;
+        border-bottom-width: 1px;
+    }
+
+    .email-columns {
+        display: flex;
+        flex: 1;
+        gap: 10px;
+    }
+
+    .proforma-holder, .invoice-holder, .storno-holder {
+        display: flex;
+        width: 100%;
+    }
+
+    .email-column {
+        padding: 10px;
+        background: #F0F0F1;
+        border-radius: 4px;
+        flex: 1;
+    }
+
+    .email-column-header {
+        /* Auto layout */
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        padding: 0px;
+        gap: 10px;
+        width: 222.67px;
+        height: 44px;
+        /* Inside auto layout */
+        flex: none;
+        order: 0;
+        align-self: stretch;
+        flex-grow: 0;
+    }
+
+
+    .email-template {
+        text-align: center;
+        margin-top: 20px;
+    }
+
+
+    .billingo-email-settings-input-first-row {
+        width: 100% !important;
+        max-width:100% !important;
+        height: 30;
+        justify-content: space-between;
+        padding-right: 5px;
+        border-radius: 4px;
+        border-width: 1px;
+        padding-top: 22px;
+        padding-bottom: 20px;
+    }
+
+    .billingo-email-settings-input-second-row {
+        /* Input */
+        box-sizing: border-box;
+        /* Auto layout */
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        padding: 0px 5px;
+
+        gap: 10px;
+        width: 100%;
+        height: 40px;
+        background: #FFFFFF;
+        border: 1px solid #8D8F95;
+        border-radius: 4px;
+        /* Inside auto layout */
+        flex: none;
+        order: 2;
+        align-self: stretch;
+        flex-grow: 0;
+        margin-bottom: 20px;
+        margin-top: 10px;
+    }
+
+    .billingo-email-settings-input-third-row {
+        /* Input */
+        box-sizing: border-box;
+        /* Auto layout */
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        padding: 5px;
+        gap: 10px;
+        width: 100%;
+        height: 58px;
+        background: #FFFFFF;
+        border: 1px solid #8D8F95;
+        border-radius: 4px;
+        /* Inside auto layout */
+        flex: none;
+        order: 3;
+        align-self: stretch;
+        flex-grow: 0;
+        margin-bottom: 15px;
+    }
+
+    .billingo-email-settings-first-row {
+        margin-top: 20px;
+    }
+
+    .billingo-email-settings-third-row {
+        margin-top: 20px;
+    }
+
+    .billingo-email-settings-fourth-row {
+        margin-top: 25px;
+        width: 100%;
+    }
+
+    .billingo-email-settings-fourth-row-first-column {
+        margin-top: 20px;
+    }
+
+
+    .billingo-email-settings-select {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+        margin: 0px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .woocommerce-save-button.components-button.is-primary {
+        display: none !important;
+    }
+
+    .billingo-primary-button{
+        /* type=Primary */
+
+        /* Auto layout */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 7px 10px;
+        gap: 4px;
+
+        width: fit-content;
+        height: fit-content;
+        left: 20px;
+        top: 20px;
+        text-decoration: none !important;
+
+        /* m/m main */
+        background: #0C4FEB;
+        border-radius: 3px;
+
+        /* Title */
+
+        font-family: 'Arial';
+        font-style: normal;
+        font-weight: 700;
+        font-size: 14px;
+        line-height: 16px;
+        /* identical to box height */
+
+        color: #FFFFFF;
+        
+        /* Transition for smooth hover effect */
+        transition: background-color 0.3s ease, transform 0.2s ease;
+
+        /* Inside auto layout */
+        flex: none;
+        order: 0;
+        align-self: stretch;
+        flex-grow: 0;
+    }
+    
+    .billingo-primary-button:hover {
+        background-color: #0A43CC; /* Slightly darker shade when hovering */
+        transform: translateY(-2px); /* Slight movement upward on hover */
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Add shadow on hover */
+    }
+
+
+
+    @media (min-width: 1400px) {
+        .email-settings-container {
+            display: flex;
+            flex-direction: row;
+        }
+        .invoice-section-labels{
+            display:none;
+        }
+        .storno-section-labels{
+            display:none;
+        }
+        .billingo-email-settings-fourth-row{
+            margin-bottom: 10px !important;
+        }
+        .email-column{
+            min-width: 260px !important;
+        }
+    }
+    
+
+    /* media queries for screens over 1400px */
+    @media (min-width: 480px) {
+        .small-screen-label {
+            display: none;
+        }
+        .small-screen-description {
+            display: none;
+        }
+    }
+
+    /* Media query for screens between 1400px and 1200px - only storno column wraps */
+    @media (max-width: 1400px) and (min-width: 1200px) {
+        .email-columns {
+            flex-wrap: wrap;
+        }
+        .proforma-column, .storno-column {
+            width: auto;
+        }
+
+        .billingo-email-settings-select{
+            max-width: auto !important;
+        }
+
+        .email-settings-container {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+        }
+        .invoice-section-labels{
+            display:none;
+        }
+        .billingo-email-settings-second-row-medium{
+            margin-top: 5px !important;
+        }
+        .billingo-email-settings-third-row{
+            margin-top: 20px !important;
+        }
+        .billingo-email-settings-fourth-row{
+            margin-bottom: 10px !important;
+        }
+        .email-column{
+            min-width: 260px !important;
+        }
+        .email-labels{
+            margin-right: 10px !important;
+        }
+    }
+
+    /* Media query for screens between 1200px and 768px - invoice and storno columns wrap */
+    @media (max-width: 1200px) and (min-width: 768px) {
+        .email-columns {
+            flex-wrap: wrap;
+        }
+        .proforma-column {
+            width: 100%;
+        }
+        .invoice-column, .storno-column {
+            width: 100%;
+          
+        }
+        .billingo-email-settings-select{
+            width: 100% !important;
+        }
+        .billingo-email-settings-second-row-medium{
+            margin-top: 3px !important;
+        }
+
+        .billingo-email-settings-first-row{
+            width: 100% !important;
+        }
+        .billingo-email-settings-fourth-row{
+            margin-bottom: 10px !important;
+        }
+        .email-labels{
+            margin-right: 10px !important;
+        }
+    }
+
+    @media (max-width: 768px) and (min-width: 480px) {
+        .email-columns {
+            flex-wrap: wrap;
+        }
+        .proforma-column {
+            width: 100%;
+        }
+        
+        .billingo-email-settings-select{
+            max-width: auto !important;
+        }
+        .billingo-email-settings-second-row-medium{
+            margin-top: 12px !important;
+        }
+        .billingo-email-settings-fourth-row{
+            margin-bottom: 10px !important;
+        }
+        .email-labels{
+            margin-right: 10px !important;
+        }
+    }
+    /* Media queries for responsive layout */
+    @media (max-width: 480px) {
+        .email-columns {
+            flex-direction: column;
+        }
+        
+        .email-column {
+            width: 100%;
+            height: auto !important;
+            margin-bottom: 20px;
+        }
+        
+        .billingo-email-settings-input-first-row {
+            width: 100% !important;
+        }
+        .email-labels {
+            display: none;
+        }
+        .billingo-email-settings-select {
+            max-width: 100% !important;
+        }
+        .small-screen-label {
+            display: block;
+            margin-top: 15px !important;
+            height: min-content !important;
+            text-align: center !important;
+        }
+        .small-screen-description {
+            display: block;
+            margin-top: 0px !important;
+            height: auto !important;
+        }
+        .billingo-field-description-italic{
+            width: 100% !important;
+        }
+        .billingo-email-settings-input-third-row{
+            margin-top:5px !important;
+        }
+        .billingo-email-settings-fourth-row{
+            margin-top: 1px !important;
+        }
+        .billingo-postbox{
+            padding-right: 40px !important;
+        }
+
+    }
+    
+    @media (max-width: 480px) {
+           
+        .email-labels {
+            width: 100%;
+            height: auto;
+            margin-bottom: 20px;
+        }
+        
+        .email-label {
+            width: 100%;
+        }
+        
+        .email-template {
+            margin-top: 10px;
+        }
+
+        .small-screen-label {
+            display: block;
+            margin-top: 0px !important;
+            height: auto !important;
+            text-align: center !important;
+        }
+        .small-screen-description {
+            display: block;
+            margin-top: 0px !important;
+        }
+
+    }
+
+</style>
+<div class="billingo-metabox-holder">
+    <div class="billingo-postbox">
+        <h2 class="billingo-email-settings-title">{{ 'E-mail Beállítások' | esc_html_translate }}</h2>
+
+        <div class="email-settings-container">
+            <!-- Díjbekérő (Proforma) section -->
+            <div class="email-row proforma-section-row">
+                <div class="email-labels proforma-section-labels">
+                    <div class="email-label"></div>
+                    <div class="email-label billingo-field-name-email-settings billingo-email-settings-first-row">{{
+                        'Küldés' | esc_html_translate }}</div>
+                    <div class="email-label billingo-field-name-email-settings billingo-email-settings-second-row billingo-email-settings-second-row-medium">
+                        {{ 'Gomb szöveg' | esc_html_translate }}
+                        <div class="billingo-field-description-italic">
+                            {{ 'Ez a gomb szövege az emailben, ha a csatolás be van kapcsolva.' | esc_html_translate }}
+                        </div>
+                    </div>
+                    <div class="email-label billingo-field-name-email-settings billingo-email-settings-third-row">
+                        {{ 'Gomb feletti szöveg' | esc_html_translate }}
+                        <div class="billingo-field-description-italic">
+                            {{ 'Ez az üzenet jelenik meg az emailben, ha a csatolás be van kapcsolva.' |
+                            esc_html_translate }}
+                        </div>
+                    </div>
+                    <div class="email-label billingo-field-name-email-settings billingo-email-settings-fourth-row-first-column">{{
+                        'WooCommerce template' | esc_html_translate }}
+                        <div class="billingo-field-description-italic">
+                            {{ 'Ez az üzenet jelenik meg az emailben, ha a csatolás be van kapcsolva.' |
+                            esc_html_translate }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Díjbekérő column -->
+                <div class="email-column proforma-column">
+                    <div class="email-column-header">
+                            <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <g clip-path="url(#clip0_33_1278)">
+                                <path d="M38 0H6C2.68629 0 0 2.68629 0 6V38C0 41.3137 2.68629 44 6 44H38C41.3137 44 44 41.3137 44 38V6C44 2.68629 41.3137 0 38 0Z" fill="#FCE3B6"/>
+                                <path d="M26.0249 24.25H18.0249C17.826 24.25 17.6352 24.329 17.4946 24.4697C17.3539 24.6103 17.2749 24.8011 17.2749 25C17.2749 25.1989 17.3539 25.3897 17.4946 25.5303C17.6352 25.671 17.826 25.75 18.0249 25.75H26.0249C26.2238 25.75 26.4146 25.671 26.5552 25.5303C26.6959 25.3897 26.7749 25.1989 26.7749 25C26.7749 24.8011 26.6959 24.6103 26.5552 24.4697C26.4146 24.329 26.2238 24.25 26.0249 24.25Z" fill="#C68F2E"/>
+                                <path d="M26.0249 20.25H18.0249C17.826 20.25 17.6352 20.329 17.4946 20.4697C17.3539 20.6103 17.2749 20.8011 17.2749 21C17.2749 21.1989 17.3539 21.3897 17.4946 21.5303C17.6352 21.671 17.826 21.75 18.0249 21.75H26.0249C26.2238 21.75 26.4146 21.671 26.5552 21.5303C26.6959 21.3897 26.7749 21.1989 26.7749 21C26.7749 20.8011 26.6959 20.6103 26.5552 20.4697C26.4146 20.329 26.2238 20.25 26.0249 20.25Z" fill="#C68F2E"/>
+                                <path d="M29.8051 10.958H18.0251C17.894 10.9577 17.7641 10.9834 17.6429 11.0335C17.5218 11.0836 17.4117 11.1572 17.3191 11.25L11.2681 17.292C11.1751 17.385 11.1014 17.4953 11.0511 17.6168C11.0008 17.7383 10.975 17.8685 10.9751 18V27.785C10.9756 28.3721 11.209 28.9351 11.6241 29.3503C12.0391 29.7656 12.602 29.9992 13.1891 30H26.8351L31.5001 32.892C31.6581 32.9899 31.8402 33.0419 32.0261 33.042C32.1964 33.0419 32.3638 32.9989 32.5131 32.917C32.6689 32.8302 32.7986 32.7032 32.8888 32.5494C32.979 32.3955 33.0264 32.2204 33.0261 32.042V14.178C33.0253 13.3241 32.6857 12.5054 32.0818 11.9017C31.4778 11.2979 30.659 10.9585 29.8051 10.958ZM17.0251 14.369V17H14.3911L17.0251 14.369ZM31.0251 30.246L27.6461 28.146C27.4877 28.0495 27.3056 27.999 27.1201 28H13.1891C13.1609 28 13.133 27.9944 13.107 27.9836C13.0809 27.9728 13.0573 27.957 13.0374 27.937C13.0175 27.917 13.0018 27.8933 12.9911 27.8672C12.9804 27.8411 12.975 27.8132 12.9751 27.785V19H18.0251C18.2903 19 18.5447 18.8947 18.7322 18.7071C18.9197 18.5196 19.0251 18.2652 19.0251 18V12.958H29.8051C30.1286 12.9583 30.4387 13.0869 30.6675 13.3156C30.8962 13.5444 31.0248 13.8545 31.0251 14.178V30.246Z" fill="#C68F2E"/>
+                                </g>
+                                <defs>
+                                <clipPath id="clip0_33_1278">
+                                <rect width="44" height="44" fill="white"/>
+                                </clipPath>
+                                </defs>
+                                </svg>
+                        <div class="billingo-field-name-email-settings">{{ 'Díjbekérő' | esc_html_translate }}</div>
+                    </div>
+
+                    <!-- Küldés small screen -->
+                    <div class="billingo-field-name-email-settings small-screen-label" >{{
+                        'Küldés' | esc_html_translate }}</div>
+                    <!-- Küldés small screen -->
+
+                    <div class="billingo-email-settings-input-first-row">
+                        <select class="billingo-email-settings-select"
+                            name="billingo_email_settings[wc_billingo_proforma_email]">
+                            {% for key, value in options %}
+                            <option value="{{ key | esc_attr }}" {{ selected(key, email_proforma) }}>
+                                {{ value | esc_html_translate }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Gomb szöveg small screen -->
+                    <div class="billingo-field-name-email-settings small-screen-label">
+                        {{ 'Gomb szöveg' | esc_html_translate }}
+                        <div class="billingo-field-description-italic small-screen-description">
+                            {{ 'Ez a gomb szövege az emailben, ha a csatolás be van kapcsolva.' | esc_html_translate }}
+                        </div>
+                    </div>
+                    <!-- Gomb szöveg small screen -->
+
+                    <div class="billingo-email-settings-text-input-container">
+                        <input class="billingo-email-settings-input-second-row" type="text"
+                            name="billingo_email_settings[wc_billingo_proforma_email_woo_btn]"
+                            value="{{ btn_text_proforma | e }}"
+                            placeholder="{{ 'Díjbekérő letöltése' | esc_attr }}" />
+                    </div>
+                    <!-- Gomb feletti szöveg small screen -->
+                    <div class="billingo-field-name-email-settings small-screen-label">
+                        {{ 'Gomb feletti szöveg' | esc_html_translate }}
+                        <div class="billingo-field-description-italic small-screen-description">
+                            {{ 'Ez az üzenet jelenik meg az emailben, ha a csatolás be van kapcsolva.' |
+                            esc_html_translate }}
+                        </div>
+                    </div>
+                    <!-- Gomb feletti szöveg small screen -->
+
+                    <div class="billingo-email-settings-text-input-container">
+                        <input class="billingo-email-settings-input-third-row" type="text"
+                            name="billingo_email_settings[wc_billingo_proforma_email_woo_text]"
+                            value="{{ text_proforma | e }}"
+                            placeholder="{{ 'Díjbekérője elkészült, melyet az alábbi linken tud letölteni.' | esc_html_translate }}" />
+                    </div>
+                    <!-- Számla template small screen -->
+                    <div class="billingo-field-name-email-settings small-screen-label">{{
+                        'WooCommerce template' | esc_html_translate }}
+                        <div class="billingo-field-description-italic small-screen-description">
+                            {{ 'Ez az üzenet jelenik meg az emailben, ha a csatolás be van kapcsolva.' |
+                            esc_html_translate }}
+                        </div>
+                    </div>
+                    <!-- Számla template small screen -->
+
+                    <div class="email-template billingo-email-settings-fourth-row">processing</div>
+                </div>
+            </div>
+            
+            <!-- Számla (Invoice) section -->
+            <div class="email-row invoice-section-row">
+                <div class="email-labels invoice-section-labels">
+                    <div class="email-label"></div>
+                    <div class="email-label billingo-field-name-email-settings billingo-email-settings-first-row">{{
+                        'Küldés' | esc_html_translate }}</div>
+                    <div class="email-label billingo-field-name-email-settings billingo-email-settings-second-row billingo-email-settings-second-row-medium">
+                        {{ 'Gomb szöveg' | esc_html_translate }}
+                        <div class="billingo-field-description-italic">
+                            {{ 'Ez a gomb szövege az emailben, ha a csatolás be van kapcsolva.' | esc_html_translate }}
+                        </div>
+                    </div>
+                    <div class="email-label billingo-field-name-email-settings billingo-email-settings-third-row">
+                        {{ 'Gomb feletti szöveg' | esc_html_translate }}
+                        <div class="billingo-field-description-italic">
+                            {{ 'Ez az üzenet jelenik meg az emailben, ha a csatolás be van kapcsolva.' |
+                            esc_html_translate }}
+                        </div>
+                    </div>
+                    <div class="email-label billingo-field-name-email-settings billingo-email-settings-fourth-row-first-column">{{
+                        'WooCommerce template' | esc_html_translate }}
+                        <div class="billingo-field-description-italic">
+                            {{ 'Ez az üzenet jelenik meg az emailben, ha a csatolás be van kapcsolva.' |
+                            esc_html_translate }}
+                        </div>
+                    </div>
+                </div>
+            
+                <!-- Számla column -->
+                <div class="email-column invoice-column">
+                    <div class="email-column-header">
+                            <svg width="45" height="44" viewBox="0 0 45 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <g clip-path="url(#clip0_33_1327)">
+                                <path d="M38.6665 0H6.6665C3.3528 0 0.666504 2.68629 0.666504 6V38C0.666504 41.3137 3.3528 44 6.6665 44H38.6665C41.9802 44 44.6665 41.3137 44.6665 38V6C44.6665 2.68629 41.9802 0 38.6665 0Z" fill="#B5E7F2"/>
+                                <path d="M18.6665 20.25C18.4676 20.25 18.2768 20.329 18.1362 20.4697C17.9955 20.6103 17.9165 20.8011 17.9165 21C17.9165 21.1989 17.9955 21.3897 18.1362 21.5303C18.2768 21.671 18.4676 21.75 18.6665 21.75H26.6665C26.8654 21.75 27.0562 21.671 27.1968 21.5303C27.3375 21.3897 27.4165 21.1989 27.4165 21C27.4165 20.8011 27.3375 20.6103 27.1968 20.4697C27.0562 20.329 26.8654 20.25 18.6665 20.25Z" fill="#00668B"/>
+                                <path d="M26.6665 25.25H18.6665C18.4676 25.25 18.2768 25.329 18.1362 25.4697C17.9955 25.6103 17.9165 25.8011 17.9165 26C17.9165 26.1989 17.9955 26.3897 18.1362 26.5303C18.2768 26.671 18.4676 26.75 18.6665 26.75H26.6665C26.8654 26.75 27.0562 26.671 27.1968 26.5303C27.3375 26.3897 27.4165 26.1989 27.4165 26C27.4165 25.8011 27.3375 25.6103 27.1968 25.4697C27.0562 25.329 26.8654 25.25 26.6665 25.25Z" fill="#00668B"/>
+                                <path d="M30.6665 11H20.6665C20.5339 11 20.4027 11.0265 20.2805 11.078C20.1759 11.124 20.0801 11.188 19.9975 11.267C19.9865 11.278 19.9705 11.282 19.9585 11.293L13.9585 17.293C13.7722 17.4812 13.6673 17.7351 13.6665 18V32C13.6665 32.2652 13.7719 32.5196 13.9594 32.7071C14.1469 32.8946 14.4013 33 14.6665 33H30.6665C30.9317 33 31.1861 32.8946 31.3736 32.7071C31.5611 32.5196 31.6665 32.2652 31.6665 32V12C31.6665 11.7348 31.5611 11.4804 31.3736 11.2929C31.1861 11.1054 30.9317 11 30.6665 11ZM19.6665 14.414V17H17.0805L19.6665 14.414ZM29.6665 31H15.6665V19H20.6665C20.9317 19 21.1861 18.8946 21.3736 18.7071C21.5611 18.5196 21.6665 18.2652 21.6665 18V13H29.6665V31Z" fill="#00668B"/>
+                                </g>
+                                <defs>
+                                <clipPath id="clip0_33_1327">
+                                <rect width="44" height="44" fill="white" transform="translate(0.666504)"/>
+                                </clipPath>
+                                </defs>
+                                </svg>
+                        <div class="billingo-field-name-email-settings">{{ 'Számla' | esc_html_translate }}</div>
+                    </div>
+
+                    <!-- Küldés small screen -->
+                    <div class="billingo-field-name-email-settings small-screen-label" >{{
+                        'Küldés' | esc_html_translate }}</div>
+                    <!-- Küldés small screen -->
+
+                    
+                    <div class="billingo-email-settings-input-first-row">
+                        <select class="billingo-email-settings-select"
+                            name="billingo_email_settings[wc_billingo_email]">
+                            {% for key, value in options %}
+                            <option value="{{ key | esc_attr }}" {{ selected(key, email_invoice) }}>
+                                {{ value | esc_html_translate }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Gomb szöveg small screen -->
+                    <div class="billingo-field-name-email-settings small-screen-label">
+                        {{ 'Gomb szöveg' | esc_html_translate }}
+                        <div class="billingo-field-description-italic small-screen-description">
+                            {{ 'Ez a gomb szövege az emailben, ha a csatolás be van kapcsolva.' | esc_html_translate }}
+                        </div>
+                    </div>
+                    <!-- Gomb szöveg small screen -->
+
+
+                    <div class="billingo-email-settings-text-input-container">
+                        <input class="billingo-email-settings-input-second-row" type="text" class="regular-text"
+                            name="billingo_email_settings[wc_billingo_email_woo_btn]"
+                            value="{{ btn_text_invoice | e }}"
+                            placeholder="{{ 'Számla letöltése' | esc_attr }}" />
+                    </div>
+
+                    <!-- Gomb feletti szöveg small screen -->
+                    <div class="billingo-field-name-email-settings small-screen-label">
+                        {{ 'Gomb feletti szöveg' | esc_html_translate }}
+                        <div class="billingo-field-description-italic small-screen-description">
+                            {{ 'Ez az üzenet jelenik meg az emailben, ha a csatolás be van kapcsolva.' |
+                            esc_html_translate }}
+                        </div>
+                    </div>
+                    <!-- Gomb feletti szöveg small screen -->                        
+
+                    <div class="billingo-email-settings-text-input-container">
+                        <input class="billingo-email-settings-input-third-row" type="text"
+                            name="billingo_email_settings[wc_billingo_email_woo_text]"
+                            value="{{ text_invoice | e }}"
+                            placeholder="{{ 'Díjbekérője elkészült, melyet az alábbi linken tud letölteni.' | esc_html_translate }}" />
+                    </div>
+                    <!-- woocommerce template small screen -->
+                    <div class="billingo-field-name-email-settings small-screen-label">{{
+                        'WooCommerce template' | esc_html_translate }}
+                        <div class="billingo-field-description-italic small-screen-description">
+                            {{ 'Ez az üzenet jelenik meg az emailben, ha a csatolás be van kapcsolva.' |
+                            esc_html_translate }}
+                        </div>
+                    </div>
+                    <!-- woocommerce template small screen -->
+                    <div class="email-template billingo-email-settings-fourth-row">completed</div>
+                </div>
+            </div>
+
+            <!-- Storno section -->
+            <div class="email-row storno-section-row">
+                <div class="email-labels storno-section-labels">
+                    <div class="email-label"></div>
+                    <div class="email-label billingo-field-name-email-settings billingo-email-settings-first-row">{{
+                        'Küldés' | esc_html_translate }}</div>
+                    <div class="email-label billingo-field-name-email-settings billingo-email-settings-second-row-medium">
+                        {{ 'Gomb szöveg' | esc_html_translate }}
+                        <div class="billingo-field-description-italic">
+                            {{ 'Ez a gomb szövege az emailben, ha a csatolás be van kapcsolva.' | esc_html_translate }}
+                        </div>
+                    </div>
+                    <div class="email-label billingo-field-name-email-settings billingo-email-settings-third-row">
+                        {{ 'Gomb feletti szöveg' | esc_html_translate }}
+                        <div class="billingo-field-description-italic">
+                            {{ 'Ez az üzenet jelenik meg az emailben, ha a csatolás be van kapcsolva.' |
+                            esc_html_translate }}
+                        </div>
+                    </div>
+                    <div class="email-label billingo-field-name-email-settings billingo-email-settings-fourth-row-first-column">{{
+                        'WooCommerce template' | esc_html_translate }}
+                        <div class="billingo-field-description-italic">
+                            {{ 'Ez az üzenet jelenik meg az emailben, ha a csatolás be van kapcsolva.' |
+                            esc_html_translate }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Storno column -->
+                <div class="email-column storno-column">
+                    <div class="email-column-header">
+                            <svg width="45" height="44" viewBox="0 0 45 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <g clip-path="url(#clip0_33_1336)">
+                                <path d="M38.3335 0.00201416H6.3335C3.01979 0.00201416 0.333496 2.68831 0.333496 6.00201V38.002C0.333496 41.3157 3.01979 44.002 6.3335 44.002H38.3335C41.6472 44.002 44.3335 41.3157 44.3335 38.002V6.00201C44.3335 2.68831 41.6472 0.00201416 38.3335 0.00201416Z" fill="#D6E3EA"/>
+                                <path d="M22.8336 23.439L20.8636 21.47C20.7215 21.3375 20.5334 21.2654 20.3391 21.2689C20.1448 21.2723 19.9594 21.351 19.822 21.4884C19.6846 21.6258 19.6059 21.8112 19.6025 22.0055C19.599 22.1998 19.6712 22.3879 19.8036 22.53L21.7726 24.5L19.8036 26.47C19.73 26.5387 19.6709 26.6215 19.6299 26.7135C19.5889 26.8055 19.5668 26.9048 19.5651 27.0055C19.5633 27.1062 19.5818 27.2062 19.6195 27.2996C19.6572 27.393 19.7134 27.4778 19.7846 27.5491C19.8558 27.6203 19.9407 27.6764 20.0341 27.7142C20.1274 27.7519 20.2275 27.7704 20.3282 27.7686C20.4289 27.7668 20.5282 27.7448 20.6202 27.7038C20.7122 27.6628 20.795 27.6037 20.8636 27.53L22.8336 25.561L24.8036 27.53C24.9458 27.6625 25.1339 27.7346 25.3282 27.7312C25.5225 27.7278 25.7079 27.6491 25.8453 27.5117C25.9827 27.3742 26.0614 27.1889 26.0648 26.9946C26.0683 26.8003 25.9961 26.6122 25.8636 26.47L23.8946 24.5L25.8636 22.53C25.9961 22.3879 26.0683 22.1998 26.0648 22.0055C26.0614 21.8112 25.9827 21.6258 25.8453 21.4884C25.7079 21.351 25.5225 21.2723 25.3282 21.2689C25.1339 21.2654 24.9458 21.3375 24.8036 21.47L22.8336 23.439Z" fill="#5A748E"/>
+                                <path d="M30.3335 11H20.3335C20.2009 11 20.0697 11.0265 19.9475 11.078C19.8429 11.124 19.7471 11.188 19.6645 11.267C19.6535 11.278 19.6375 11.282 19.6255 11.293L13.6255 17.293C13.4391 17.4812 13.3343 17.7351 13.3335 18V32C13.3335 32.2652 13.4389 32.5196 13.6264 32.7071C13.8139 32.8946 14.0683 33 14.3335 33H30.3335C30.5987 33 30.8531 32.8946 31.0406 32.7071C31.2281 32.5196 31.3335 32.2652 31.3335 32V12C31.3335 11.7348 31.2281 11.4804 31.0406 11.2929C30.8531 11.1054 30.5987 11 30.3335 11ZM19.3335 14.414V17H16.7475L19.3335 14.414ZM29.3335 31H15.3335V19H20.3335C20.5987 19 20.8531 18.8946 21.0406 18.7071C21.2281 18.5196 21.3335 18.2652 21.3335 18V13H29.3335V31Z" fill="#5A748E"/>
+                                </g>
+                                <defs>
+                                <clipPath id="clip0_33_1336">
+                                <rect width="44" height="44" fill="white" transform="translate(0.333496)"/>
+                                </clipPath>
+                                </defs>
+                                </svg>                                    
+                        <div class="billingo-field-name-email-settings">{{ 'Sztornó' | esc_html_translate }}</div>
+                    </div>
+                    <!-- Küldés small screen -->
+                    <div class="billingo-field-name-email-settings small-screen-label" >{{
+                        'Küldés' | esc_html_translate }}</div>
+                    <!-- Küldés small screen -->
+
+                    <div class="billingo-email-settings-input-first-row">
+                        <select class="billingo-email-settings-select"
+                            name="billingo_email_settings[wc_billingo_storno_email]">
+                            {% for key, value in options %}
+                            <option value="{{ key | esc_attr }}" {{ selected(key, email_storno) }}>
+                                {{ value | esc_html_translate }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Gomb szöveg small screen -->
+                    <div class="billingo-field-name-email-settings small-screen-label">
+                        {{ 'Gomb szöveg' | esc_html_translate }}
+                        <div class="billingo-field-description-italic small-screen-description">
+                            {{ 'Ez a gomb szövege az emailben, ha a csatolás be van kapcsolva.' | esc_html_translate }}
+                        </div>
+                    </div>
+                    <!-- Gomb szöveg small screen -->
+
+                    <div class="billingo-email-settings-text-input-container">
+                        <input class="billingo-email-settings-input-second-row" type="text" 
+                            name="billingo_email_settings[wc_billingo_storno_email_woo_btn]"
+                            value="{{ btn_text_storno | e }}"
+                            placeholder="{{ 'Stornó letöltése' | esc_attr }}" />
+                    </div>
+
+                    <!-- Gomb feletti szöveg small screen -->
+                    <div class="billingo-field-name-email-settings small-screen-label">
+                        {{ 'Gomb feletti szöveg' | esc_html_translate }}
+                        <div class="billingo-field-description-italic small-screen-description">
+                            {{ 'Ez az üzenet jelenik meg az emailben, ha a csatolás be van kapcsolva.' |
+                            esc_html_translate }}
+                        </div>
+                    </div>
+                    <!-- Gomb feletti szöveg small screen -->
+
+                    <div class="billingo-email-settings-text-input-container">
+                        <input class="billingo-email-settings-input-third-row" type="text" 
+                            name="billingo_email_settings[wc_billingo_storno_email_woo_text]"
+                            value="{{ text_storno | e }}"
+                            placeholder="{{ 'Stornó számlája elkészült, melyet az alábbi linken tud letölteni.' | esc_html_translate }}" />
+                    </div>
+                    <!-- woocommerce template small screen -->
+                    <div class="billingo-field-name-email-settings small-screen-label">{{
+                        'WooCommerce template' | esc_html_translate }}
+                        <div class="billingo-field-description-italic small-screen-description">
+                            {{ 'Ez az üzenet jelenik meg az emailben, ha a csatolás be van kapcsolva.' |
+                            esc_html_translate }}
+                        </div>
+                    </div>
+                    <!-- woocommerce template small screen -->
+                    <div class="email-template billingo-email-settings-fourth-row">refunded</div>
+                </div>    
+            </div>
+
+        </div>
+        <p>
+            <hr>
+            <input type="hidden" name="subsection" value="email"/>
+            <button type="submit" class="billingo-primary-button" name="save"
+            value="Mentés">{{'Mentés'|esc_html_translate }}</button>
+        </p> 
+    </div>
+</div>
+<script>
+      document.addEventListener("DOMContentLoaded", function() {
+                    const form = document.getElementById("mainform");
+                    form.addEventListener("submit", function() {
+                        window.onbeforeunload = null;
+                    });
+                });
+</script>

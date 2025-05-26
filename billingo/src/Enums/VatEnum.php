@@ -1,0 +1,66 @@
+<?php
+
+namespace App\Billingo\Enums;
+
+use ValueError;
+
+enum VatEnum: string
+{
+    case PERCENT_0 = '0%';
+    case PERCENT_1 = '1%';
+    case PERCENT_10 = '10%';
+    case PERCENT_11 = '11%';
+    case PERCENT_12 = '12%';
+    case PERCENT_13 = '13%';
+    case PERCENT_14 = '14%';
+    case PERCENT_15 = '15%';
+    case PERCENT_16 = '16%';
+    case PERCENT_17 = '17%';
+    case PERCENT_18 = '18%';
+    case PERCENT_19 = '19%';
+    case PERCENT_2 = '2%';
+    case PERCENT_20 = '20%';
+    case PERCENT_21 = '21%';
+    case PERCENT_22 = '22%';
+    case PERCENT_23 = '23%';
+    case PERCENT_24 = '24%';
+    case PERCENT_25 = '25%';
+    case PERCENT_26 = '26%';
+    case PERCENT_27 = '27%';
+    case PERCENT_3 = '3%';
+    case PERCENT_4 = '4%';
+    case PERCENT_5 = '5%';
+    case PERCENT_5_5 = '5,5%';
+    case PERCENT_6 = '6%';
+    case PERCENT_7 = '7%';
+    case PERCENT_7_7 = '7,7%';
+    case PERCENT_8 = '8%';
+    case PERCENT_8_1 = '8,1%';
+    case PERCENT_9 = '9%';
+    case PERCENT_9_5 = '9,5%';
+    case AAM = 'AAM';
+    case AM = 'AM';
+    case EU = 'EU';
+    case EUK = 'EUK';
+    case F_AFA = 'F.AFA';
+    case FAD = 'FAD';
+    case K_AFA = 'K.AFA';
+    case MAA = 'MAA';
+    case TAM = 'TAM';
+    case AKK = 'ÁKK';
+    case ATHK = 'ÁTHK';
+
+    public static function fromNumber(string $number): ?self
+    {
+        $number = (float)$number . '%';
+        $number = str_replace('.', ',', $number);
+
+        try {
+
+            return self::from($number);
+        } catch (ValueError $e) {
+
+            return null;
+        }
+    }
+}

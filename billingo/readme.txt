@@ -1,8 +1,9 @@
 === Official Integration for Billingo ===
 Tags: billingo.hu, billingo, woocommerce, szamlazas, magyar
-Requires at least: 5.3
-Tested up to: 6.6.2
-Stable tag: 3.6.4
+Requires at least: 6.4
+Tested up to: 6.8.1
+Requires PHP: 8.1
+Stable tag: 4.0.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -37,7 +38,7 @@ Korábbi verzió használata esetén átállási segédletünket itt találod: h
 
 Az összekötés a két felület között rendkívül egyszerű. Folyamatosan frissítjük felhasználói kézikönyvünkben az összekötésre vonatkozó segédletünket is, ahol lépésről lépésre mutatjuk be a bővítmény használatát.
 
-A segédletet ide kattintva érheted el: https://support.billingo.hu/content/97255646
+A segédletet ide kattintva érheted el:https://support.billingo.hu/content/2996830214
 
 Pár kiemelt pont a működéssel kapcsolatosan:
 *   Telepítést követően a WooCommerce/Beállítások menüpontban a Billingo fülön add meg a fiókodból kinyert API kulcsokat, majd ments rá a felületre.
@@ -47,34 +48,19 @@ Pár kiemelt pont a működéssel kapcsolatosan:
 *   Bizonyos rendelésenként az opciók gombra kattintva kikapcsolhatod a számlázást és adhatsz hozzá egyéni megjegyzést is.
 *   Választhatsz ki sztornó állapotot is, így, ha a megadott rendelési állapotra állítod a rendelés státuszát (Pl.: visszamondva), a sztornó számla automatikusan elkészül.
 
-= EGYÉB INFORMÁCIÓK =
-
-A számla tételek és információk generálás előtt módosíthatók a wc_billingo_clientdata és wc_billingo_invoicedata filterekkel. Előbbi az ügyfél adatokat módosítja, utóbbi a számlán lévő tételeket. Ez minden esetben az éppen aktív téma functions.php fájlban történjen, hogy az esetleges plugin frissítés ne törölje ki a módosításokat!
-
-Például:
-
-    <?php
-    // Számlanyelv változtatás
-    add_filter('wc_billingo_invoicedata', 'wc_billingo_lang', 10, 2);
-    function wc_billingo_lang($data, $order) {
-        $data['template_lang_code'] = 'en';
-        return $data;
-    }
-
 == Installation ==
 
 1. Töltsd le a bővítményt vagy telepítsd bel a Bővítmények menüpontban
 2. WooCommerce / Beállítások oldal alján megjelennek a Billingo beállítások, ezeket be kell állítani
 3. Beállíátsok elmentése után lehetőség van a fizetési módok összepárosítására a billingo rendszerében megfelelővel
 
-== Screenshots ==
-
-1. Beállítások képernyő (WooCommerce / Beállítások)
-2. Beállítások képernyő (WooCommerce / Beállítások)
-3. Beállítások képernyő (WooCommerce / Beállítások)
-4. Manuális számla/sztornó számla készítő meta box a rendelés részleteiben
-
 == Changelog ==
+
+= 4.0.0.
+* Új SDK és stabilitás növelés. 
+* Új felhasználói felület
+* 0-számlázás
+* További részletek a fenti cikkben.
 
 = 3.6.2
 * Fejlesztés: Adattörlőkód integrálása

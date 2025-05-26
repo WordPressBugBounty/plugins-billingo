@@ -1,0 +1,268 @@
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style>
+    .billingo-postbox {
+        padding: 20px;
+        background: #FFFFFF;
+    }
+
+    .billingo-payment-methods-table {
+        background-color: #f1f1f2 !important;
+        border-radius: 4px;
+        border: 1px solid #5B5B5B;
+    }
+
+    .billingo-payment-methods-table th,
+    .billingo-payment-methods-table td {
+        border: 1px solid#5B5B5B !important;
+    }
+
+    .billingo-settings-title-payment-methods {
+
+        /* Auto layout */
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        padding: 0px;
+        gap: 10px;
+
+        width: 224px;
+        height: 30px;
+
+
+        /* Inside auto layout */
+        flex: none;
+        order: 1;
+        flex-grow: 0;
+        z-index: 1;
+        font-family: Arial;
+        font-weight: 700;
+        font-size: 18px;
+        line-height: 100%;
+        letter-spacing: 0%;
+        color: #10355A;
+
+    }
+
+    .woocommerce-save-button.components-button.is-primary {
+        display: none !important;
+    }
+
+    .billingo-payment-methods-table-header {
+        /* Text */
+
+        width: 176px;
+        height: 18px;
+
+        font-family: 'Arial'!important;
+        font-style: normal!important;
+        font-weight: 600!important;
+        font-size: 14px!important;
+        line-height: 130%!important;
+        /* or 18px */
+
+        color: #50565F!important;
+
+
+        /* Inside auto layout */
+        flex: none;
+        order: 0;
+        flex-grow: 1;
+    }
+
+    .billingo-payment-methods-table-select {
+        /* Input */
+
+        box-sizing: border-box;
+
+        /* Auto layout */
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0px 5px;
+        gap: 10px;
+
+        width: 176px;
+        height: 24px;
+
+        background: #FFFFFF;
+        border: 1px solid #8D8F95;
+        border-radius: 4px;
+
+        /* Inside auto layout */
+        flex: none;
+        order: 0;
+        align-self: stretch;
+        flex-grow: 1;
+
+    }
+
+    .billingo-primary-button{
+        /* type=Primary */
+
+        /* Auto layout */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 7px 10px;
+        gap: 4px;
+
+        width: fit-content;
+        height: fit-content;
+        left: 20px;
+        top: 20px;
+        text-decoration: none !important;
+
+        /* m/m main */
+        background: #0C4FEB;
+        border-radius: 3px;
+
+        /* Title */
+
+        font-family: 'Arial';
+        font-style: normal;
+        font-weight: 700;
+        font-size: 14px;
+        line-height: 16px;
+        /* identical to box height */
+
+        color: #FFFFFF;
+        
+        /* Transition for smooth hover effect */
+        transition: background-color 0.3s ease, transform 0.2s ease;
+
+        /* Inside auto layout */
+        flex: none;
+        order: 0;
+        align-self: stretch;
+        flex-grow: 0;
+    }
+    
+    .billingo-primary-button:hover {
+        background-color: #0A43CC; /* Slightly darker shade when hovering */
+        transform: translateY(-2px); /* Slight movement upward on hover */
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Add shadow on hover */
+    }
+
+    /* Responsive CSS for scrollable table */
+    @media screen and (max-width: 1200px) {
+        .billingo-settings-panel.payment-settings {
+            width: 100%;
+            overflow-x: auto;
+            padding-bottom: 15px;
+        }
+        
+        .billingo-payment-methods-table {
+            min-width: 900px; /* Ensure table has enough width to display all columns */
+            width: 100%;
+        }
+        
+        .billingo-settings-title-payment-methods {
+            width: 100%;
+            text-align: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+        
+        /* Submit button full-width on small screens */
+        @media screen and (max-width: 782px) {
+            .billingo-postbox {
+                padding: 15px 10px;
+            }
+            
+            .billingo-primary-button {
+                width: 100%;
+                margin-top: 15px;
+                box-sizing: border-box;
+            }
+            
+            hr {
+                margin: 20px 0 !important;
+            }
+        }
+    }
+</style>
+<div class="billingo-metabox-holder">
+    <div class="billingo-postbox">
+        <div class="billingo-settings-panel payment-settings">
+            <h2 class="billingo-settings-title-payment-methods">{{ 'Fizetési Módok Beállításai'|esc_html_translate }}</h2>
+
+            <table class="widefat billingo-payment-methods-table">
+                <thead>
+                    <tr>
+                        <th class="billingo-payment-methods-table-header">{{ 'Fizetési mód (helyi)'|esc_html_translate }}</th>
+                        <th class="billingo-payment-methods-table-header">{{ 'Billingo megfelelője'|esc_html_translate }}</th>
+                        <th class="billingo-payment-methods-table-header">{{ 'Fizetési határidő'|esc_html_translate }}</th>
+                        <th class="billingo-payment-methods-table-header">{{ 'Fizetettnek jelölés (díjbekérő esetén)'|esc_html_translate }}</th>
+                        <th class="billingo-payment-methods-table-header">{{ 'Fizetettnek jelölés (éves számla esetén)'|esc_html_translate }}</th>
+                        <th class="billingo-payment-methods-table-header">{{ 'Díjbekérő kiállítása'|esc_html_translate }}</th>
+                    </tr>
+                </thead>
+                <tbody class>
+                    {% for method in payment_methods %}
+                    <tr>
+                        <td>{{ method.name|esc_html_translate }}</td>
+                        <td>
+                            <select class="billingo-payment-methods-table-select" name="billingo_payment_settings[{{ method.key|esc_attr }}][billingo_payment_method]"
+                                style="width: 100%;">
+                                <option> {{ '-- Válassz! --' | esc_html_translate }}</option>
+                                {% for id, name in billingo_payment_methods %}
+                                <option value="{{ id|esc_attr }}" {% if id==method.bpm %}selected="selected" {% endif %}>{{ name|esc_html_translate }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <input type="number" name="billingo_payment_settings[{{ method.key|esc_attr }}][paymentdue]"
+                                value="{{ method.due|esc_attr }}" min="0" style="width: 65px;">
+                        </td>
+                        <td style="text-align: center;">
+                            <input type="hidden" name="billingo_payment_settings[{{ method.key|esc_attr }}][mark_as_paid2]"
+                                value="0" />
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="billingo_payment_settings[{{ method.key|esc_attr }}][mark_as_paid2]"
+                                    value="1" class="sr-only peer" {% if method.pay2==1 %}checked="checked" {% endif %}>
+                                <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </td>
+                        <td style="text-align: center;">
+                            <input type="hidden" name="billingo_payment_settings[{{ method.key|esc_attr }}][mark_as_paid]"
+                                value="0" />
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="billingo_payment_settings[{{ method.key|esc_attr }}][mark_as_paid]"
+                                    value="1" class="sr-only peer" {% if method.pay==1 %}checked="checked" {% endif %}>
+                                <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </td>
+                        <td style="text-align: center;">
+                            <input type="hidden" name="billingo_payment_settings[{{ method.key|esc_attr }}][proforma]"
+                                value="0" />
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="billingo_payment_settings[{{ method.key|esc_attr }}][proforma]"
+                                    value="1" class="sr-only peer" {% if method.pro==1 %}checked="checked" {% endif %}>
+                                <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <p style="padding-top: 10px;">
+            <hr style="padding-bottom: 20px; border-bottom: none !important;">
+            <input type="hidden" name="subsection" value="payment" />
+            <button type="submit" class="billingo-primary-button" name="save" value="Mentés">{{
+                'Mentés'|esc_html_translate }}</button>
+        </p>
+    </div>
+</div>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+                  const form = document.getElementById("mainform");
+                  form.addEventListener("submit", function() {
+                      window.onbeforeunload = null;
+                  });
+              });
+</script>
