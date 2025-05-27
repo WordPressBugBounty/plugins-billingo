@@ -118,7 +118,7 @@ trait Admin_Init
 
     public static function render_meta_box_content($order)
     {
-        $orderId = $order->get_id();
+        $orderId = $order->ID();
         $repository = new Billingo_Repositroy();
         $client = new BillingoClient(get_option('wc_billingo_api_key'));
 

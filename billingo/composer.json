@@ -1,14 +1,6 @@
 {
-    "name": "code4flow/billingonew",
+    "name": "billingo/billingonew",
     "authors": [
-        {
-            "name": "Gacs Péter",
-            "email": "peter.gacs@code4flow.com"
-        },
-        {
-            "name": "Fazekas Zénó Noel",
-            "email": "zeno.fazekas@code4flow.com"
-        }
     ],
     "require": {
         "php": "^8.1",
