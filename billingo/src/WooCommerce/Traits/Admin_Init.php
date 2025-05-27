@@ -118,17 +118,35 @@ trait Admin_Init
 
     public static function render_meta_box_content($order)
     {
-        $orderId = $order->ID();
+        if (is_object($order)) {
+            if (method_exists($order, 'get_id')) {
+                $order_id = $order->get_id();
+            } elseif (property_exists($order, 'ID')) {
+                $order_id = $order->ID;
+            } elseif (method_exists($order, 'ID')) {
+                $order_id = $order->ID();
+            } else {
+                $order_id = null; // vagy dobj hibát
+            }
+        }
         $repository = new Billingo_Repositroy();
         $client = new BillingoClient(get_option('wc_billingo_api_key'));
 
         $isApiKeyMissing = !get_option('wc_billingo_api_key');
         $databaseRecord = $repository
-            ->where('order_id', $orderId)
+            ->where('order_id', $order_id)
             ->where('type', TypeEnum::INVOICE->value)
             ->first();
 
-        $defaultDocumentType = TypeEnum::from(get_option('wc_billingo_manual_type'))->getReadableText();
+        $typeValue = get_option('wc_order_manual_type');
+        $enum = TypeEnum::tryFrom($typeValue);
+
+        if ($enum) {
+            $defaultDocumentType = $enum->getReadableText();
+        } else {
+            $defaultDocumentType = 'Ismeretlen típus'; // vagy valami alapértelmezett szöveg
+        }
+        
         $wcData = [
             'note' => get_option('wc_billingo_note'),
             'date' => wp_date('Y-m-d'),
@@ -150,7 +168,7 @@ trait Admin_Init
 
         echo view('Admin.billingo_metabox', [
             'isApiKeyMissing' => $isApiKeyMissing,
-            'orderId' => $orderId,
+            'orderId' => $order_oid,
             'nonce' => $nonce,
             'connectionError' => $connectionError ?? null,
             'document' => $document ?? null,
