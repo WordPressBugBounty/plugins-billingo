@@ -125,7 +125,9 @@ class Billingo_Document_Generator
         $deadline = isset($this->manualIncome['deadline'])
             ? (int)$this->manualIncome['deadline']
             : (int)get_option("wc_billingo_paymentdue_{$paymentMethod}");
-        $language = wcIsTrue(get_option('wc_billingo_invoice_lang_wpml'))
+        var_dump($deadline);
+        die();
+        $language = wcFlexibleIsTrue(get_option('wc_billingo_invoice_lang_wpml'))
         && !empty(get_post_meta($this->order->get_id(), 'wpml_order_language', true))
             ? get_post_meta($this->order->get_id(), 'wpml_order_language', true)
             : get_option('wc_billingo_invoice_lang');
@@ -141,12 +143,12 @@ class Billingo_Document_Generator
             'paid' => false,
             'language' => $language,
             'currency' => $this->order->get_currency() ?: 'HUF',
-            'electronic' => wcIsTrue(get_option('wc_billingo_electronic')),
+            'electronic' => wcFlexibleIsTrue(get_option('wc_billingo_electronic')),
             'items' => $this->createProductItems(),
             'comment' => $this->getNote(),
             'settings' => [
                 'round' => get_option('wc_billingo_invoice_round'),
-                'without_financial_fulfillment' => wcIsTrue(get_option('mark_paid_without_financial_fulfillment')),
+                'without_financial_fulfillment' => wcFlexibleIsTrue(get_option('mark_paid_without_financial_fulfillment')),
                 'should_send_email' => false,
             ],
         ];
@@ -156,7 +158,7 @@ class Billingo_Document_Generator
 
     private function getPartnerName(): string
     {
-        $partnerName = wcIsTrue(get_option('wc_billingo_flip_name'))
+        $partnerName = wcFlexibleIsTrue(get_option('wc_billingo_flip_name'))
             ? "{$this->order->get_billing_first_name()} {$this->order->get_billing_last_name()}"
             : "{$this->order->get_billing_last_name()} {$this->order->get_billing_first_name()}";
 
@@ -304,7 +306,6 @@ class Billingo_Document_Generator
                     'sku' => !empty($this->getProductSku($itemData)) ? $this->getProductSku($itemData) : null,
                     'is_generate_erase_code' => $this->hasEraseCode($itemObject),
                 ]);
-                
                 $productItems[] = $originalItem;
             } catch (\Exception $e) {
                 Billingo_Logger::error('Hiba a dokumentum elem létrehozásakor: ' . $e->getMessage());
@@ -375,7 +376,104 @@ class Billingo_Document_Generator
             }
         }
         
+        // Szállítási költség hozzáadása a számlára
+        $shippingMethods = $this->order->get_shipping_methods();
+        $hasShippingCost = false;
+        
+        // Ellenőrizzük, hogy van-e tényleges szállítási költség
+        foreach ($shippingMethods as $shippingMethod) {
+            if (floatval($shippingMethod->get_total()) > 0) {
+                $hasShippingCost = true;
+                break;
+            }
+        }
+        
+        // Ha van szállítási költség, mindig hozzáadjuk a tényleges összegével
+        if ($hasShippingCost) {
+            Billingo_Logger::info('Szállítási költség található a rendelésben - hozzáadás a számlához');
+            
+            foreach ($shippingMethods as $shippingMethod) {
+                $shippingMethodTitle = $shippingMethod->get_method_title();
+                $shippingTotal = floatval($shippingMethod->get_total());
+                
+                if ($shippingTotal > 0) {
+                    // Szállítási tétel létrehozása a tényleges összeggel
+                    $shippingItem = new DocumentProductData([
+                        'name' => !empty($shippingMethodTitle) 
+                            ? __('Szállítás - ', 'billingo') . $shippingMethodTitle 
+                            : __('Szállítás', 'billingo'),
+                        'quantity' => 1,
+                        'unit_price' => $shippingTotal,
+                        'unit_price_type' => $this->getCalculatedDateForItem('unit_price_type')->value,
+                        'unit' => $this->getCalculatedDateForItem('unit'),
+                        'vat' => $this->getShippingVatCode($shippingMethod)->value,
+                        'comment' => ''
+                    ]);
+                    
+                    $productItems[] = $shippingItem;
+                    Billingo_Logger::info('Szállítási tétel hozzáadva: ' . $shippingMethodTitle . ' (' . $shippingTotal . ' ' . $this->order->get_currency() . ')');
+                }
+            }
+        }
+        // Ha nincs szállítási költség, de a "mindig látszódjon" beállítás aktív, akkor 0 összegű tételt adunk hozzá
+        if (wcFlexibleIsTrue(get_option('wc_billingo_always_add_carrier'))) {
+            Billingo_Logger::info('Nincs szállítási költség, de a "Szállító mindig látszódjon" beállítás aktív - 0 összegű tétel hozzáadása');
+            
+            if (!empty($shippingMethods)) {
+                foreach ($shippingMethods as $shippingMethod) {
+                    $shippingMethodTitle = $shippingMethod->get_method_title();
+                    
+                    $shippingItem = new DocumentProductData([
+                        'name' => !empty($shippingMethodTitle) 
+                            ? __('Szállítás - ', 'billingo') . $shippingMethodTitle 
+                            : __('Szállítás', 'billingo'),
+                        'quantity' => 1,
+                        'unit_price' => 0,
+                        'unit_price_type' => $this->getCalculatedDateForItem('unit_price_type')->value,
+                        'unit' => $this->getCalculatedDateForItem('unit'),
+                        'vat' => $this->getShippingVatCode($shippingMethod)->value,
+                        'comment' => ''
+                    ]);
+                    
+                    $productItems[] = $shippingItem;
+                    Billingo_Logger::info('Ingyenes szállítási tétel hozzáadva: ' . $shippingMethodTitle . ' (0 összegű)');
+                    
+                    break;
+                }
+            }
+        }
+        
         return $productItems;
+    }
+    
+    /**
+     * Szállítási ÁFA kulcs meghatározása
+     * @param mixed $shippingMethod WooCommerce szállítási módszer objektum (opcionális)
+     * @return VatEnum
+     */
+    private function getShippingVatCode($shippingMethod = null): VatEnum
+    {
+        // Ha van szállítási módszer, próbáljuk meg lekérni az ÁFA kulcsot
+        if ($shippingMethod && method_exists($shippingMethod, 'get_taxes')) {
+            $taxes = $shippingMethod->get_taxes();
+            if (!empty($taxes)) {
+                // Az első ÁFA kulcsot használjuk
+                $taxRateId = array_key_first($taxes);
+                if ($taxRateId) {
+                    $taxRate = WC_Tax::_get_tax_rate($taxRateId);
+                    if ($taxRate && isset($taxRate['tax_rate'])) {
+                        $vatEnum = VatEnum::fromNumber($taxRate['tax_rate']);
+                        if ($vatEnum) {
+                            return $vatEnum;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Ha nem sikerült meghatározni a szállítási ÁFA kulcsot, 
+        // akkor az alapértelmezett 27%-ot használjuk (magyar standard)
+        return VatEnum::PERCENT_27;
     }
     
     /**
@@ -397,7 +495,6 @@ class Billingo_Document_Generator
             $taxRate = WC_Tax::get_rates_for_tax_class($item['tax_class']);
             $vat = array_shift($taxRate)->tax_rate;
         }
-        
         return match ($dataName) {
             'unit' => get_option('wc_billingo_unit')
                 ? __(get_option('wc_billingo_unit'), 'billingo')
@@ -405,10 +502,10 @@ class Billingo_Document_Generator
             'vat' => isset($vat)
                 ? VatEnum::fromNumber($vat)
                 : null,
-            'unit_price_type' => wcIsTrue(get_option('wc_billingo_pricing'))
+            'unit_price_type' => wcFlexibleIsTrue(get_option('wc_billingo_pricing'))
                 ? UnitPriceTypeEnum::GROSS
                 : UnitPriceTypeEnum::NET,
-            'comment' => wcIsTrue(get_option('wc_billingo_sku'))
+            'comment' => wcFlexibleIsTrue(get_option('wc_billingo_sku'))
                 ? (__('Cikkszám', 'billingo') . ': ' . $this->getProductSku($item))
                 : null,
             default => null,
@@ -435,13 +532,13 @@ class Billingo_Document_Generator
             $note = $this->manualIncome['note'];
         }
 
-        if (wcIsTrue(get_option('wc_billingo_note_orderid'))) {
+        if (wcFlexibleIsTrue(get_option('wc_billingo_note_orderid'))) {
             $note .= "\n" . __('Megrendelés azonosító', 'billingo') . ': ' . $this->order->get_order_number();
         }
 
         $barrionId = $this->order->get_meta('Barion paymentId', true);
 
-        if (wcIsTrue(get_option('wc_billingo_note_barion'))
+        if (wcFlexibleIsTrue(get_option('wc_billingo_note_barion'))
             && $barrionId) {
             $note .= "\n" . __('Barion tranzakció azonosító', 'billingo') . ': ' . sanitize_text_field($barrionId);
         }
@@ -454,9 +551,13 @@ class Billingo_Document_Generator
         if (isset($this->manualIncome['invoice_type']) &&!empty($this->manualIncome['invoice_type'])){
             $settingsValue = $this->manualIncome['invoice_type'];
         }else {
-            $settingsValue = wcIsTrue(get_post_meta($this->order->get_id(), '_is_manual', true))
+            $settingsValue = wcFlexibleIsTrue(get_post_meta($this->order->get_id(), '_is_manual', true))
                 ? get_option('wc_billingo_manual_type')
-                : get_option('wc_billingo_auto');
+                : (
+                get_option('wc_billingo_proforma_' . $this->order->get_payment_method()) == 1
+                    ? 'proforma'
+                    : get_option('wc_billingo_auto')
+                );
         }
 
         return match ($settingsValue) {
@@ -473,7 +574,7 @@ class Billingo_Document_Generator
         $isForbidden = false;
 
         // has child orders but is disabled
-        if (wcIsTrue(get_option('wc_billingo_block_child_orders')) && $this->order->get_parent_id() != 0) {
+        if (wcFlexibleIsTrue(get_option('wc_billingo_block_child_orders')) && $this->order->get_parent_id() != 0) {
 
             Billingo_Logger::error('Document creation exits: Child orders are disabled');
             $isForbidden = true;

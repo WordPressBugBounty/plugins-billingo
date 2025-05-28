@@ -118,10 +118,11 @@ if (!function_exists('billingoCollection')) {
     }
 }
 
-if (!function_exists('wcIsTrue')) { //TODO: visszamenőleg javítani
-    function wcIsTrue(string $value): bool
+
+if (!function_exists('wcFlexibleIsTrue')) {
+    function wcFlexibleIsTrue(string $value): bool
     {
-        return $value === 'yes';
+        return in_array(strtolower($value), ['1', 'yes', 'true', 'on'], true);
     }
 }
 
