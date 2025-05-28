@@ -114,10 +114,10 @@ jQuery(document).ready(function ($) {
             action: "wc_billingo_generate_invoice",
             nonce: nonce,
             order: order,
-            note: note,
-            deadline: deadline,
-            completed: completed,
-            invoice_type: invoice_type,
+            wc_billingo_invoice_note: note,
+            wc_billingo_invoice_deadline: deadline,
+            wc_billingo_invoice_completed: completed,
+            wc_billingo_invoice_type: invoice_type,
             ignore_proforma: ignore_proforma
         };
 
@@ -357,6 +357,8 @@ jQuery(document).ready(function ($) {
             $("#wc_billingo_tax_override_entitlements").prop("disabled", false);
             $("#wc_billingo_tax_override_value").prop("disabled", false);
             $("#wc_billingo_tax_override_zero_entitlements").prop("disabled", true);
+            //remove 0% option from the entitlements select in wc_billingo_tax_override_value
+            $("#wc_billingo_tax_override_value").find("option[value='0%']").remove();
         }
     }
 

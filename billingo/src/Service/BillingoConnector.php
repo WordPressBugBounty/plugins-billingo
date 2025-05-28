@@ -22,6 +22,7 @@ class BillingoConnector
             'X-API-KEY' => $apiKey,
             'Content-Type' => 'application/json',
             'Accept' => 'application/json',
+            'X-Plugin-Name'    => 'Woccomerce 4.0',
         ];
     }
 

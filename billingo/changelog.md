@@ -1,4 +1,7 @@
 # Changelog
+-**4.0.5** - 2025.05.28
+- Bugfix Tax override problem
+
 -**4.0.0** - 2025.05.21
 - Új SDK
 - Új layout

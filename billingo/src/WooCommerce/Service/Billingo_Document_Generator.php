@@ -103,9 +103,9 @@ class Billingo_Document_Generator
 
             Billingo_Logger::info(ucfirst($type->value) . ' generation: SUCCESSFUL');
         }
-
+        Billingo_Logger::info('Tax override: ' . get_option('wc_billingo_tax_override'));
         if (get_option('wc_billingo_tax_override')) {
-
+            Billingo_Logger::info('Áfa felülírási igény');
             $document->items = $this->overrideTax($document->items);
         }
 
@@ -114,7 +114,7 @@ class Billingo_Document_Generator
             $document->settings->should_send_email = true;
             Billingo_Logger::info('Email send by Billingo');
         }
-
+        Billingo_Logger::info('Document: ' . json_encode($document));
         return $document;
     }
 
@@ -482,18 +482,27 @@ class Billingo_Document_Generator
         return $isForbidden;
     }
 
+
+    /**
+     * Áfa felülírás
+     * 0%-os felülírás esetén jogcímet kell küldeni nem a százalékot a vat field-ben is.
+     * @param array $items
+     * @return array
+     */
     private function overrideTax(array $items): array
     {
+        Billingo_Logger::info('Áfa felülírás beállítása...');
         $typeisZero = get_option('wc_billingo_tax_override_choice') == 0;
+        Billingo_Logger::info('Áfa felülírás beállítása: ' . $typeisZero);
 
         $entitlemet = $typeisZero
             ? get_option('wc_billingo_tax_override_zero_entitlements')
             : get_option('wc_billingo_tax_override_entitlements');
-
+        Billingo_Logger::info('Áfa felülírás entitlement: ' . $entitlemet);
         $value = $typeisZero
-            ? VatEnum::PERCENT_0->value
+            ? $entitlemet
             : VatEnum::from(get_option('wc_billingo_tax_override_value'))->value;
-
+        Billingo_Logger::info('Áfa felülírás VAT ÉRTÉKE: ' . $value);
         if (!$typeisZero) {
             foreach ($items as $item) {
                 $item->vat = $value;
@@ -501,11 +510,10 @@ class Billingo_Document_Generator
             }
         } else {
             foreach ($items as $item) {
-                if ($item->entitlement == $entitlemet) {
+
                     $item->vat = $value;
-                }
-            }
         }
+    }
 
         return $items;
     }
