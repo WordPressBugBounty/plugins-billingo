@@ -168,7 +168,7 @@ trait Admin_Init
 
         echo view('Admin.billingo_metabox', [
             'isApiKeyMissing' => $isApiKeyMissing,
-            'orderId' => $order_oid,
+            'orderId' => $order_id,
             'nonce' => $nonce,
             'connectionError' => $connectionError ?? null,
             'document' => $document ?? null,
