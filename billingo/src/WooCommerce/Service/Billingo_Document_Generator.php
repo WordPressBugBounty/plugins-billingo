@@ -124,7 +124,7 @@ class Billingo_Document_Generator
             ?? get_option('wc_billingo_fallback_payment');
         $deadline = isset($this->manualIncome['deadline'])
             ? (int)$this->manualIncome['deadline']
-            : (int)get_option("wc_billingo_paymentdue_{$paymentMethod}");
+            : (int)get_option("wc_billingo_paymentdue_{$this->order->get_payment_method()}");
         $language = wcFlexibleIsTrue(get_option('wc_billingo_invoice_lang_wpml'))
         && !empty(get_post_meta($this->order->get_id(), 'wpml_order_language', true))
             ? get_post_meta($this->order->get_id(), 'wpml_order_language', true)
@@ -298,7 +298,7 @@ class Billingo_Document_Generator
                     'unit_price' => $unitPrice,
                     'unit_price_type' => $this->getCalculatedDateForItem('unit_price_type')->value,
                     'unit' => $this->getCalculatedDateForItem('unit'),
-                    'vat' => $this->getCalculatedDateForItem('vat', $itemData)->value ?->value ?? '0%',
+                    'vat' => $this->getCalculatedDateForItem('vat', $itemData)->value ?? '0%',
                     'comment' => $this->getCalculatedDateForItem('comment', $itemData),
                     'entitlement' => $this->getCalculatedDateForItem('entitlement', $itemData)?->value,
                     'sku' => !empty($this->getProductSku($itemData)) ? $this->getProductSku($itemData) : null,
@@ -557,6 +557,7 @@ class Billingo_Document_Generator
                     : get_option('wc_billingo_auto')
                 );
         }
+
 
         return match ($settingsValue) {
             'invoice' => 'getInvoice',

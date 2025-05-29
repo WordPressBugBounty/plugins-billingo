@@ -147,9 +147,6 @@ class Billingo_Product_Sync
 
         $erase_code = $this->isProductNeedsEraseCode($product_id);
 
-        // Naplózás
-        Billingo_Logger::info("Erase code: " . var_export($erase_code, true));
-
 
         $productData = [
             'name' => $name,

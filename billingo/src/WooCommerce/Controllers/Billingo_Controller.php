@@ -28,7 +28,7 @@ class Billingo_Controller
     public function createDocument(DocumentInsert $document): ?Document
     {
 
-        
+        Billingo_Logger::info('Document type of creating: ' . $document->type);
         $hasInvoice = $this->repository
             ->where('type', TypeEnum::INVOICE->value)
             ->where('order_id', $this->orderId)
@@ -56,7 +56,12 @@ class Billingo_Controller
 
             if ($canUseProforma) {
                 return $this->createInvoiceFromProforma($hasProforma['billingo_id']);
-            } else {
+            }
+            else if ($document->type === TypeEnum::DRAFT->value) {
+                Billingo_Logger::info('Piszkozat létrehozására beérkező igény');
+                return $this->createInvoice($document);
+            }
+            else {
                 return $this->createInvoice($document);
             }
         }

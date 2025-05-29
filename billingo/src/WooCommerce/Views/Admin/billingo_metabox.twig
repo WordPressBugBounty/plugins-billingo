@@ -2,6 +2,7 @@
     'invoice': 'Számla',
     'proforma': 'Díjbekérő',
     'draft': 'Piszkozat',
+    'cancellation': 'Sztornó',
 } %}
 <div style="text-align:center; margin-top: 10px">
     {% if isApiKeyMissing %}
@@ -11,16 +12,16 @@
         <div id="wc-billingo-messages"></div>
         {% if document %}
             <p style="margin-bottom: 10px">
-                {{ typeNames[document['type']] }}{{ ' sikeresen létrehozva.' | esc_html_translate }}
+                {{ typeNames[document['type']] ?? document['type'] }}{{ ' sikeresen létrehozva.' | esc_html_translate }}
             </p>
             <p style="margin-bottom: 10px">
-                {{ typeNames[document['type']] }}{{ ' sorszáma:' | esc_html_translate }}{{ document['invoice_number'] }}
+                {{ typeNames[document['type']] ?? document['type'] }}{{ ' sorszáma:' | esc_html_translate }}{{ document['invoice_number'] }}
             </p>
             <div style="margin: 10px">
                 <a href="{{ link }}"
                    class="button button-primary"
                    target="_blank">
-                    {{ typeNames[document['type']] }}{{ ' megtekintése' | esc_html_translate }}
+                    {{ typeNames[document['type']] ?? document['type'] }}{{ ' megtekintése' | esc_html_translate }}
                 </a>
             </div>
             {% if document['type'] == 'invoice' %}
@@ -68,12 +69,64 @@
                     <h4>{{ 'Számla típusa' | esc_html_translate }}</h4>
 
                     <select name="wc_billingo_invoice_type" id="wc_billingo_invoice_type">
-                        <option value="invoice" {{ selected(defaultDocumentType, 'invoice') }}>{{ typeNames['invoice'] | esc_html_translate }}</option>
-                        <option value="proforma" {{ selected(defaultDocumentType, 'proforma') }}>{{ typeNames['proforma'] | esc_html_translate }}</option>
-                        <option value="draft" {{ selected(defaultDocumentType, 'draft') }}>{{ typeNames['draft'] | esc_html_translate }}</option>
+                        <option value="invoice" {{ defaultDocumentType == 'invoice' or defaultDocumentType == 'Számla' ? 'selected' : '' }}>{{ typeNames['invoice'] | esc_html_translate }}</option>
+                        <option value="proforma" {{ defaultDocumentType == 'proforma' or defaultDocumentType == 'Díjbekérő' ? 'selected' : '' }}>{{ typeNames['proforma'] | esc_html_translate }}</option>
+                        <option value="draft" {{ defaultDocumentType == 'draft' or defaultDocumentType == 'Piszkozat' ? 'selected' : '' }}>{{ typeNames['draft'] | esc_html_translate }}</option>
                     </select>
+                </div>
+            </div>
+        {% endif %}
+
+        {# Display all previous documents in collapsible section #}
+        {% if allDocuments is not empty %}
+            <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+                <div style="cursor: pointer; margin-bottom: 10px;" onclick="togglePreviousDocuments()">
+                    <h4 style="margin: 0; display: inline-block;">
+                        {{ 'Korábbi dokumentumok' | esc_html_translate }} ({{ allDocuments|length }})
+                    </h4>
+                    <span id="billingo-docs-toggle" style="margin-left: 10px; font-weight: bold;">▼</span>
+                </div>
+                <div id="billingo-previous-documents" style="display: none;">
+                    {% for docItem in allDocuments %}
+                        <div style="margin-bottom: 15px; padding: 10px; background-color: #f9f9f9; border-radius: 4px;">
+                            <p style="margin: 0 0 5px 0; font-weight: bold;">
+                                {{ typeNames[docItem.document_data['type']] ?? docItem.document_data['type'] }}
+                                {% if docItem.document_data['invoice_number'] %}
+                                    - {{ docItem.document_data['invoice_number'] }}
+                                {% endif %}
+                            </p>
+                            {% if docItem.database_record['created_at'] %}
+                                <p style="margin: 0 0 5px 0; font-size: 11px; color: #666;">
+                                    {{ 'Létrehozva:' | esc_html_translate }} {{ docItem.database_record['created_at'] }}
+                                </p>
+                            {% endif %}
+                            {% if docItem.link %}
+                                <a href="{{ docItem.link }}" 
+                                   class="button button-secondary button-small" 
+                                   target="_blank" 
+                                   style="font-size: 11px;">
+                                    {{ 'Megtekintés' | esc_html_translate }}
+                                </a>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
                 </div>
             </div>
         {% endif %}
     {% endif %}
 </div>
+
+<script>
+function togglePreviousDocuments() {
+    var docsDiv = document.getElementById('billingo-previous-documents');
+    var toggleSpan = document.getElementById('billingo-docs-toggle');
+    
+    if (docsDiv.style.display === 'none') {
+        docsDiv.style.display = 'block';
+        toggleSpan.innerHTML = '▲';
+    } else {
+        docsDiv.style.display = 'none';
+        toggleSpan.innerHTML = '▼';
+    }
+}
+</script>

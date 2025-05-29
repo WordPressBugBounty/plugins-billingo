@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Billingo Official for WooCommerce
- * Version: 4.0.8
+ * Version: 4.0.9
  * Requires at least: 6.7
  * Requires PHP: 8.1
  * License: GPL v2 or later
@@ -32,6 +32,32 @@ use App\Billingo\WooCommerce\Helpers\WC_Billingo_Helper;
 use App\Billingo\WooCommerce\Repositories\Billingo_Repositroy;
 
 register_activation_hook(__FILE__, [Billingo_Repositroy::class, 'install']);
+register_activation_hook(__FILE__, 'billingo_plugin_activated');
+
+// Hook for plugin updates
+add_action('upgrader_process_complete', 'billingo_plugin_updated', 10, 2);
+
+// Function to handle plugin activation
+function billingo_plugin_activated() {
+    // Set flag to show settings notification
+    update_option('wc_billingo_show_settings_notification', true);
+}
+
+// Function to handle plugin updates
+function billingo_plugin_updated($upgrader_object, $options) {
+    // Check if our plugin was updated
+    if ($options['action'] == 'update' && $options['type'] == 'plugin') {
+        if (isset($options['plugins'])) {
+            foreach ($options['plugins'] as $plugin) {
+                if ($plugin == plugin_basename(__FILE__)) {
+                    // Set flag to show settings notification
+                    update_option('wc_billingo_show_settings_notification', true);
+                    break;
+                }
+            }
+        }
+    }
+}
 
 add_action('init', [WC_Billingo_Helper::class, 'init']);
 

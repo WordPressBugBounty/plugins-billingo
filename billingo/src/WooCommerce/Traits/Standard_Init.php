@@ -143,8 +143,33 @@ trait Standard_Init
         $orderId = (int)$_POST['order'];
             update_post_meta($orderId, '_is_manual', 'yes');
         }
+
+        Billingo_Logger::info('ajax_generateInvoice raw POST data for wc_billingo_invoice_type: ' . ($_POST['wc_billingo_invoice_type'] ?? 'NOT SET'));
+        Billingo_Logger::info('ajax_generateInvoice full relevant POST data: ' . json_encode([
+            'order' => $_POST['order'] ?? null,
+            'wc_billingo_invoice_type' => $_POST['wc_billingo_invoice_type'] ?? null,
+            'wc_billingo_invoice_note' => $_POST['wc_billingo_invoice_note'] ?? null,
+            'wc_billingo_invoice_deadline' => $_POST['wc_billingo_invoice_deadline'] ?? null,
+            'wc_billingo_invoice_completed' => $_POST['wc_billingo_invoice_completed'] ?? null,
+        ]));
+
         $response['error'] = false;
-        $invoice = (new Billingo_Document_Generator($orderId))->get();
+
+        $manualIncome = [];
+        if (isset($_POST['wc_billingo_invoice_type']) && !empty($_POST['wc_billingo_invoice_type'])) {
+            $manualIncome['invoice_type'] = sanitize_text_field($_POST['wc_billingo_invoice_type']);
+        }
+        if (isset($_POST['wc_billingo_invoice_note'])) {
+            $manualIncome['note'] = sanitize_text_field($_POST['wc_billingo_invoice_note']);
+        }
+        if (isset($_POST['wc_billingo_invoice_deadline']) && !empty($_POST['wc_billingo_invoice_deadline'])) {
+            $manualIncome['deadline'] = (int)$_POST['wc_billingo_invoice_deadline'];
+        }
+        if (isset($_POST['wc_billingo_invoice_completed']) && !empty($_POST['wc_billingo_invoice_completed'])) {
+            $manualIncome['completed'] = sanitize_text_field($_POST['wc_billingo_invoice_completed']);
+        }
+
+        $invoice = (new Billingo_Document_Generator($orderId, $manualIncome))->get();
         if (is_null($invoice)) {
             $response['error'] = true;
             $response['messages'] = [
