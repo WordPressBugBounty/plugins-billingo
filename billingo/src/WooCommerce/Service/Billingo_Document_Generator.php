@@ -125,8 +125,6 @@ class Billingo_Document_Generator
         $deadline = isset($this->manualIncome['deadline'])
             ? (int)$this->manualIncome['deadline']
             : (int)get_option("wc_billingo_paymentdue_{$paymentMethod}");
-        var_dump($deadline);
-        die();
         $language = wcFlexibleIsTrue(get_option('wc_billingo_invoice_lang_wpml'))
         && !empty(get_post_meta($this->order->get_id(), 'wpml_order_language', true))
             ? get_post_meta($this->order->get_id(), 'wpml_order_language', true)
