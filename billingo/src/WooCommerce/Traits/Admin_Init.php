@@ -144,7 +144,7 @@ trait Admin_Init
         if ($enum) {
             $defaultDocumentType = $enum->getReadableText();
         } else {
-            $defaultDocumentType = 'Ismeretlen típus'; // vagy valami alapértelmezett szöveg
+            $defaultDocumentType = 'Számla'; // vagy valami alapértelmezett szöveg
         }
         
         $wcData = [

@@ -298,7 +298,7 @@ class Billingo_Document_Generator
                     'unit_price' => $unitPrice,
                     'unit_price_type' => $this->getCalculatedDateForItem('unit_price_type')->value,
                     'unit' => $this->getCalculatedDateForItem('unit'),
-                    'vat' => $this->getCalculatedDateForItem('vat', $itemData)->value,
+                    'vat' => $this->getCalculatedDateForItem('vat', $itemData)->value ?->value ?? '0%',
                     'comment' => $this->getCalculatedDateForItem('comment', $itemData),
                     'entitlement' => $this->getCalculatedDateForItem('entitlement', $itemData)?->value,
                     'sku' => !empty($this->getProductSku($itemData)) ? $this->getProductSku($itemData) : null,
