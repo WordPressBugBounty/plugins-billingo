@@ -120,7 +120,7 @@ if (!function_exists('billingoCollection')) {
 
 
 if (!function_exists('wcFlexibleIsTrue')) {
-    function wcFlexibleIsTrue(string $value): bool
+    function wcFlexibleIsTrue($value): bool
     {
         return in_array(strtolower($value), ['1', 'yes', 'true', 'on'], true);
     }

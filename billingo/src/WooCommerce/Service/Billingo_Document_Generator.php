@@ -228,7 +228,7 @@ class Billingo_Document_Generator
         $descriptions = [
             'name' => $name,
             'address' => [
-                'country_code' => $this->order->get_billing_country(),
+                'country_code' => $this->order->get_billing_country() ?: 'HU',
                 'post_code' => $this->order->get_billing_postcode(),
                 'city' => $this->order->get_billing_city(),
                 'address' => $this->order->get_billing_address_1(),
@@ -445,11 +445,18 @@ class Billingo_Document_Generator
         // Ha van szállítási költség, mindig hozzáadjuk a tényleges összegével
         if ($hasShippingCost) {
             Billingo_Logger::info('Szállítási költség található a rendelésben - hozzáadás a számlához');
-            
+            Billingo_Logger::info('SHIPPING : ' . $this->order->get_shipping_total() + $this->order->get_shipping_tax() );
+
             foreach ($shippingMethods as $shippingMethod) {
                 $shippingMethodTitle = $shippingMethod->get_method_title();
                 $shippingTotal = floatval($shippingMethod->get_total());
-                
+
+                $shippingVatCalculated = $shippingTotal + $shippingMethod->get_total_tax();
+                if (!wcFlexibleIsTrue(get_option('wc_billingo_tax_shipping_pirce_type_is_net'))) {
+                    $shippingVatCalculated = $shippingTotal;
+                }else{
+                    $shippingVatCalculated = $shippingTotal + $shippingMethod->get_total_tax();
+                }
                 if ($shippingTotal > 0) {
                     // Szállítási tétel létrehozása a tényleges összeggel
                     $shippingItem = new DocumentProductData([
@@ -457,8 +464,8 @@ class Billingo_Document_Generator
                             ? __('Szállítás - ', 'billingo') . $shippingMethodTitle 
                             : __('Szállítás', 'billingo'),
                         'quantity' => 1,
-                        'unit_price' => $shippingTotal,
-                        'unit_price_type' => $this->getCalculatedDateForItem('unit_price_type')->value,
+                        'unit_price' => $shippingVatCalculated,
+                        'unit_price_type' => UnitPriceTypeEnum::GROSS->value,
                         'unit' => $this->getCalculatedDateForItem('unit'),
                         'vat' => $this->getShippingVatCode($shippingMethod)->value,
                         'comment' => ''
@@ -497,6 +504,33 @@ class Billingo_Document_Generator
             }
         }
         
+        $fees = $this->order->get_fees();
+        Billingo_Logger::info('Tranzakciós költségek: ' . json_encode($fees));
+        if (!empty($fees)) {
+            Billingo_Logger::info('Tranzakciós költségek találhatók a rendelésben - hozzáadás a számlához');
+            foreach ($fees as $fee) {
+                $feeTotal = floatval($fee->get_total());
+                $feeName = $fee->get_name();
+                if ($feeTotal != 0) { // Pozitív vagy negatív összeg esetén is hozzáadjuk
+                    // Tranzakciós díj ÁFA kulcsának meghatározása
+                    $feeVatCode = $this->getFeeVatCode($fee);
+                    $feeItem = new DocumentProductData([
+                        'name' => !empty($feeName)
+                            ? __('Tranzakciós költség - ', 'billingo') . $feeName
+                            : __('Tranzakciós költség', 'billingo'),
+                        'quantity' => 1,
+                        'unit_price' => $feeTotal,
+                        'unit_price_type' => UnitPriceTypeEnum::GROSS->value,
+                        'unit' => $this->getCalculatedDateForItem('unit'),
+                        'vat' => $feeVatCode->value,
+                        'comment' => ''
+                    ]);
+                    $productItems[] = $feeItem;
+                    Billingo_Logger::info('Tranzakciós költség tétel hozzáadva: ' . $feeName . ' (' . $feeTotal . ' ' . $this->order->get_currency() . ')');
+                }
+            }
+        }
+        
         return $productItems;
     }
     
@@ -530,6 +564,36 @@ class Billingo_Document_Generator
         return VatEnum::PERCENT_27;
     }
     
+    /**
+     * Tranzakciós díj ÁFA kulcs meghatározása
+     * @param mixed $fee WooCommerce fee objektum
+     * @return VatEnum
+     */
+    private function getFeeVatCode($fee): VatEnum
+    {
+        // Ha van fee objektum, próbáljuk meg lekérni az ÁFA kulcsot
+        if ($fee && method_exists($fee, 'get_taxes')) {
+            $taxes = $fee->get_taxes();
+            if (!empty($taxes)) {
+                // Az első ÁFA kulcsot használjuk
+                $taxRateId = array_key_first($taxes);
+                if ($taxRateId) {
+                    $taxRate = WC_Tax::_get_tax_rate($taxRateId);
+                    if ($taxRate && isset($taxRate['tax_rate'])) {
+                        $vatEnum = VatEnum::fromNumber($taxRate['tax_rate']);
+                        if ($vatEnum) {
+                            return $vatEnum;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Ha nem sikerült meghatározni a tranzakciós díj ÁFA kulcsát, 
+        // akkor az alapértelmezett 27%-ot használjuk (magyar standard)
+        return VatEnum::PERCENT_27;
+    }
+
     /**
      * Visszaadja az ÁFA kulcs százalékos értékét a kód alapján
      */
@@ -604,12 +668,9 @@ class Billingo_Document_Generator
             $settingsValue = $this->manualIncome['invoice_type'];
         }else {
             $settingsValue = wcFlexibleIsTrue(get_post_meta($this->order->get_id(), '_is_manual', true))
-                ? get_option('wc_billingo_manual_type')
-                : (
-                get_option('wc_billingo_proforma_' . $this->order->get_payment_method()) == 1
-                    ? 'proforma'
-                    : get_option('wc_billingo_auto')
-                );
+            ? get_option('wc_billingo_manual_type')
+            : get_option('wc_billingo_auto');
+
         }
 
 

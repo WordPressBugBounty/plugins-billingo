@@ -345,6 +345,7 @@ class WC_Billingo_Admin_Controller
             'selected_tax_override_value' => get_option('wc_billingo_tax_override_value', ''),
             'selected_tax_override_zero_entitlement' => get_option('wc_billingo_tax_override_zero_entitlements', ''),
             'tax_override_include_carrier' => (int)get_option('wc_billingo_tax_override_include_carrier', 0),
+            'tax_shipping_pirce_type_is_net' => (int)get_option('wc_billingo_tax_shipping_pirce_type_is_net', 0),
             'always_add_carrier' => (int)get_option('wc_billingo_always_add_carrier', 0),
             'entitlements' => $entitlements,
             'taxes' => $onlyTaxes
@@ -739,7 +740,8 @@ class WC_Billingo_Admin_Controller
         
         $checkbox_fields = [
             'wc_billingo_tax_override_include_carrier',
-            'wc_billingo_always_add_carrier'
+            'wc_billingo_always_add_carrier',
+            'wc_billingo_tax_shipping_pirce_type_is_net'
         ];
         
         foreach ($checkbox_fields as $field) {
