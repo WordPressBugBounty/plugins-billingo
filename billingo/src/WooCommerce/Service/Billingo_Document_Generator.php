@@ -13,7 +13,7 @@ use App\Billingo\Models\Partner\Partner;
 use App\Billingo\Service\BillingoClient;
 use Symfony\Component\HttpFoundation\Response;
 use App\Billingo\WooCommerce\Service\Billingo_Product_Sync;
-
+use App\Billingo\Enums\CurrencyEnum;
 use WC_Order;
 use WC_Order_Item;
 use WC_Order_Refund;
@@ -120,8 +120,10 @@ class Billingo_Document_Generator
 
     private function collectDocumentData(): void
     {
-        $paymentMethod = PaymentMethodEnum::fromWoocommerce($this->order->get_payment_method())?->value
-            ?? get_option('wc_billingo_fallback_payment');
+        $paymentMethod = $this->resolvePaymentMethod();
+        $paidType = $this->resolvePaidType();
+        Billingo_Logger::info('Payment Currency: ' . $this->order->get_currency());
+        
         $deadline = isset($this->manualIncome['deadline'])
             ? (int)$this->manualIncome['deadline']
             : (int)get_option("wc_billingo_paymentdue_{$this->order->get_payment_method()}");
@@ -129,6 +131,8 @@ class Billingo_Document_Generator
         && !empty(get_post_meta($this->order->get_id(), 'wpml_order_language', true))
             ? get_post_meta($this->order->get_id(), 'wpml_order_language', true)
             : get_option('wc_billingo_invoice_lang');
+
+        $currency = $this->order->get_currency() ?: 'HUF';
 
         $document = [
             'partner_id' => $this->findOrCreatePartner($this->getPartnerName()),
@@ -138,9 +142,10 @@ class Billingo_Document_Generator
                 : wp_date('Y-m-d', time()),
             'due_date' => wp_date('Y-m-d', strtotime('+' . $deadline . ' days')),
             'payment_method' => $paymentMethod,
-            'paid' => false,
+            'paid' => $paidType,
             'language' => $language,
-            'currency' => $this->order->get_currency() ?: 'HUF',
+            'currency' => $currency,
+            'conversion_rate' => 1.0,
             'electronic' => wcFlexibleIsTrue(get_option('wc_billingo_electronic')),
             'items' => $this->createProductItems(),
             'comment' => $this->getNote(),
@@ -152,6 +157,55 @@ class Billingo_Document_Generator
         ];
 
         $this->documentData = $document;
+    }
+
+    private function resolvePaidType(): bool
+    {
+        $paymentMethodName = $this->order->get_payment_method() ?? get_option('wc_billingo_fallback_payment');
+        
+        // Első ellenőrizzük, hogy van-e specifikus beállítás erre a fizetési módszerre
+        // A currentDocumentType alapján választjuk ki a megfelelő beállítást
+        if ($this->currentDocumentType === TypeEnum::PROFORMA->value) {
+            // Díjbekérő esetén a mark_as_paid2 beállítást használjuk
+            $paidSetting = get_option("wc_billingo_mark_as_paid2_{$paymentMethodName}");
+        } else {
+            // Éles számla esetén a mark_as_paid beállítást használjuk
+            $paidSetting = get_option("wc_billingo_mark_as_paid_{$paymentMethodName}");
+        }
+
+        if (wcFlexibleIsTrue($paidSetting)) {
+            return true;
+        }
+
+        //if not paid, then return false
+        return false;
+    }
+
+    private function resolvePaymentMethod(): string
+    {
+        Billingo_Logger::info('Payment method original by woocommerce: ' . $this->order->get_payment_method());
+
+        // Első prioritás: Admin felületen beállított egyedi leképezés
+        $adminPaymentMethod = get_option('wc_billingo_payment_method_' . $this->order->get_payment_method());
+        
+        if (!empty($adminPaymentMethod)) {
+            $paymentMethod = $adminPaymentMethod;
+            Billingo_Logger::info('Payment method from admin settings: ' . $paymentMethod);
+        } else {
+            // Második prioritás: Automatikus leképezés a fromWoocommerce függvényből
+            $paymentMethod = PaymentMethodEnum::fromWoocommerce($this->order->get_payment_method())?->value;
+            
+            if ($paymentMethod) {
+                Billingo_Logger::info('Payment method from automatic mapping: ' . $paymentMethod);
+            } else {
+                // Harmadik prioritás: Fallback érték
+                $paymentMethod = get_option('wc_billingo_fallback_payment');
+                Billingo_Logger::info('Payment method from fallback: ' . $paymentMethod);
+            }
+        }
+
+        Billingo_Logger::info('Payment method to billingo compiled: ' . $paymentMethod);
+        return $paymentMethod;
     }
 
     private function getPartnerName(): string
@@ -317,10 +371,12 @@ class Billingo_Document_Generator
                 $salePrice = floatval($product->get_sale_price());
                 
                 if ($regularPrice > $salePrice) {
-                    $vatRate = $this->getVatRateFromCode($this->getCalculatedDateForItem('vat', $itemData)->value);
-                    $netDiscount = ($regularPrice - $salePrice) * ($itemData['quantity'] ?? 1);
-                    $grossDiscount = $netDiscount * (1 + ($vatRate / 100));
-                    
+                    $vatObject = $this->getCalculatedDateForItem('vat', $itemData)->value ?? '0%';
+                    $vatRate = $this->getVatRateFromCode($vatObject);
+                    $grossDiscount = ($regularPrice - $salePrice) * ($itemData['quantity'] ?? 1); //ezt a termékkedvezményt csak azért vesszük bruttónak, mert mindent bruttóként kezelünk
+
+                    Billingo_Logger::info('Kedvezmény tétel hozzáadása bruttó értékkel: ' . $grossDiscount);
+
                     // Kedvezmény tétel hozzáadása bruttó értékkel
                     $discountItem = new DocumentProductData([
                         'name' => __('Kedvezmény - ', 'billingo') . ($itemData['name'] ?? 'Termék'),
@@ -328,7 +384,7 @@ class Billingo_Document_Generator
                         'unit_price' => -$grossDiscount,
                         'unit_price_type' => UnitPriceTypeEnum::GROSS->value,
                         'unit' => $this->getCalculatedDateForItem('unit'),
-                        'vat' => $this->getCalculatedDateForItem('vat', $itemData)->value,
+                        'vat' => $this->getCalculatedDateForItem('vat', $itemData)->value ?? '0%',
                     ]);
                     
                     $productItems[] = $discountItem;
@@ -365,7 +421,7 @@ class Billingo_Document_Generator
                     'name' => __('Kupon kedvezmény', 'billingo'),
                     'quantity' => 1,
                     'unit_price' => -$grossRemainingDiscount,
-                    'unit_price_type' => UnitPriceTypeEnum::GROSS->value,
+                    'unit_price_type' => $this->getCalculatedDateForItem('unit_price_type'),
                     'unit' => $this->getCalculatedDateForItem('unit'),
                     'vat' => $vatCode
                 ]);
@@ -500,9 +556,7 @@ class Billingo_Document_Generator
             'vat' => isset($vat)
                 ? VatEnum::fromNumber($vat)
                 : null,
-            'unit_price_type' => wcFlexibleIsTrue(get_option('wc_billingo_pricing'))
-                ? UnitPriceTypeEnum::GROSS
-                : UnitPriceTypeEnum::NET,
+            'unit_price_type' => UnitPriceTypeEnum::GROSS,
             'comment' => wcFlexibleIsTrue(get_option('wc_billingo_sku'))
                 ? (__('Cikkszám', 'billingo') . ': ' . $this->getProductSku($item))
                 : null,
@@ -603,6 +657,9 @@ class Billingo_Document_Generator
             ? $entitlemet
             : VatEnum::from(get_option('wc_billingo_tax_override_value'))->value;
         Billingo_Logger::info('Áfa felülírás VAT ÉRTÉKE: ' . $value);
+
+        //todo megállapítani hogy az érkező tétel szállítási költség-e és ha igen akkor megvizsgálni hogy a wc_billingo_tax_override_include_carrier beállítás aktív-e és ha szükséges akkor a szállítási költség áfáját is írjuk felül
+
         if (!$typeisZero) {
             foreach ($items as $item) {
                 $item->vat = $value;
@@ -642,5 +699,6 @@ class Billingo_Document_Generator
 
         return get_post_meta($productId, '_product_attributes',true)[$fieldName]['value'] ?? false;
     }
+
 }
 

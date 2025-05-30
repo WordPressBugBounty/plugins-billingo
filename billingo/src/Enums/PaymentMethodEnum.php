@@ -71,6 +71,18 @@ enum PaymentMethodEnum: string
             'bacs' => self::WIRE_TRANSFER,
             'cheque' => self::POSTAI_CSEKK,
             'cod' => self::CASH_ON_DELIVERY,
+            // Szépkártya variations
+            'szepcard', 'szep_card', 'woocommerce-gateway-szepcard', 'simplepay_szepcard' => self::SZEP_CARD,
+            // Barion
+            'barion', 'woocommerce-gateway-barion' => self::BARION,
+            // PayPal variations
+            'paypal', 'woocommerce-gateway-paypal', 'paypal_express' => self::PAYPAL,
+            // PayU
+            'payu', 'woocommerce-gateway-payu' => self::PAYU,
+            // Online bankkártya / Bankcard
+            'stripe', 'woocommerce-gateway-stripe', 'card', 'credit_card', 'bankcard' , 'woocommerce_payments' => self::ONLINE_BANKCARD,
+            // Készpénz
+            'cash', 'cash_payment' => self::CASH,
             default => null,
         };
     }
