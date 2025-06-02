@@ -402,7 +402,7 @@ class Billingo_Document_Generator
         }
         
         // Kupon kedvezmény hozzáadása - minden kuponhoz külön tétel
-        $usedCoupons = $this->order->get_used_coupons();
+        $usedCoupons = $this->order->get_coupon_codes();
         Billingo_Logger::info('Used coupons: ' . json_encode($usedCoupons));
         
         if (!empty($usedCoupons)) {
