@@ -103,11 +103,6 @@ class Billingo_Document_Generator
 
             Billingo_Logger::info(ucfirst($type->value) . ' generation: SUCCESSFUL');
         }
-        Billingo_Logger::info('Tax override: ' . get_option('wc_billingo_tax_override'));
-        if (get_option('wc_billingo_tax_override')) {
-            Billingo_Logger::info('Áfa felülírási igény');
-            $document->items = $this->overrideTax($document->items);
-        }
 
         if($document && $this->shouldSendEmail($document->type)){
 
@@ -151,7 +146,7 @@ class Billingo_Document_Generator
             'comment' => $this->getNote(),
             'settings' => [
                 'round' => get_option('wc_billingo_invoice_round'),
-                'without_financial_fulfillment' => wcFlexibleIsTrue(get_option('mark_paid_without_financial_fulfillment')),
+                'without_financial_fulfillment' => wcFlexibleIsTrue(get_option('mark_paid_without_financial_fulfillment')) && $paidType,
                 'should_send_email' => false,
             ],
         ];
@@ -358,6 +353,12 @@ class Billingo_Document_Generator
                     'sku' => !empty($this->getProductSku($itemData)) ? $this->getProductSku($itemData) : null,
                     'is_generate_erase_code' => $this->hasEraseCode($itemObject),
                 ]);
+
+                // áfa felülírás ha kell
+                if(wcFlexibleIsTrue(get_option('wc_billingo_tax_override'))){
+                    $originalItem = $this->overrideTax($originalItem);
+                }
+
                 $productItems[] = $originalItem;
             } catch (\Exception $e) {
                 Billingo_Logger::error('Hiba a dokumentum elem létrehozásakor: ' . $e->getMessage());
@@ -372,6 +373,9 @@ class Billingo_Document_Generator
                 
                 if ($regularPrice > $salePrice) {
                     $vatObject = $this->getCalculatedDateForItem('vat', $itemData)->value ?? '0%';
+                    if($vatObject == null){
+                        $vatObject = VatEnum::PERCENT_0->value;
+                    }
                     $vatRate = $this->getVatRateFromCode($vatObject);
                     $grossDiscount = ($regularPrice - $salePrice) * ($itemData['quantity'] ?? 1); //ezt a termékkedvezményt csak azért vesszük bruttónak, mert mindent bruttóként kezelünk
 
@@ -386,47 +390,74 @@ class Billingo_Document_Generator
                         'unit' => $this->getCalculatedDateForItem('unit'),
                         'vat' => $this->getCalculatedDateForItem('vat', $itemData)->value ?? '0%',
                     ]);
+
+                    // áfa felülírás ha kell
+                    if(wcFlexibleIsTrue(get_option('wc_billingo_tax_override'))){
+                        $discountItem = $this->overrideTax($discountItem);
+                    }
                     
                     $productItems[] = $discountItem;
                 }
             }
         }
         
-        // Kupon kedvezmény hozzáadása 
-        $totalDiscount = $this->order->get_total_discount();
+        // Kupon kedvezmény hozzáadása - minden kuponhoz külön tétel
+        $usedCoupons = $this->order->get_used_coupons();
+        Billingo_Logger::info('Used coupons: ' . json_encode($usedCoupons));
         
-        if ($totalDiscount > 0) {
-            // Ellenőrizzük, hogy a termék-kedvezményeken felül van-e még kupon kedvezmény
-            $productDiscountTotal = 0;
-            foreach ($productItems as $item) {
-                if (strpos($item->name ?? '', __('Kedvezmény - ', 'billingo')) === 0 && $item->unit_price < 0) {
-                    $productDiscountTotal += abs($item->unit_price);
+        if (!empty($usedCoupons)) {
+            // Minden egyes kuponhoz külön tételt hozunk létre
+            foreach ($usedCoupons as $couponCode) {
+                // Lekérjük a kupon kedvezmény összegét
+                $couponDiscount = 0;
+                
+                // Megkeressük a kupon adatait a rendelés tételei között
+                foreach ($this->order->get_items('coupon') as $couponItem) {
+                    if ($couponItem->get_code() === $couponCode) {
+                        $couponDiscount = abs(floatval($couponItem->get_discount()));
+                        break;
+                    }
                 }
-            }
-            
-            // Ha a kupon kedvezmény nagyobb, mint amit már hozzáadtunk a termékkedvezményekkel,
-            // akkor a különbséget külön tételként hozzáadjuk
-            $remainingDiscount = $totalDiscount - $productDiscountTotal;
-            if ($remainingDiscount > 0.5) { // Kis margót hagyunk a kerekítési hibák miatt
-                // Kupon kedvezmény esetén az első termék ÁFA kulcsát használjuk
-                $firstItem = reset($items);
-                $firstItemData = $firstItem ? $firstItem->get_data() : null;
-                $vatCode = $firstItemData ? $this->getCalculatedDateForItem('vat', $firstItemData)->value : VatEnum::PERCENT_27->value;
-                $vatRate = $this->getVatRateFromCode($vatCode);
                 
-                // A kedvezmény nettó, ezért bruttósítjuk
-                $grossRemainingDiscount = $remainingDiscount * (1 + ($vatRate / 100));
-                
-                $discountItem = new DocumentProductData([
-                    'name' => __('Kupon kedvezmény', 'billingo'),
-                    'quantity' => 1,
-                    'unit_price' => -$grossRemainingDiscount,
-                    'unit_price_type' => $this->getCalculatedDateForItem('unit_price_type'),
-                    'unit' => $this->getCalculatedDateForItem('unit'),
-                    'vat' => $vatCode
-                ]);
-                
-                $productItems[] = $discountItem;
+                if ($couponDiscount > 0) {
+                    // Ellenőrizzük, hogy szállítási kuponról van-e szó
+                    $isShippingCoupon = $this->isCouponForShipping($couponCode);
+                    
+                    if ($isShippingCoupon) {
+                        // Szállítási kupon esetén a szállítási ÁFA kulcsot használjuk
+                        $vatCode = $this->getShippingCouponVatCode()->value ?? VatEnum::PERCENT_27->value;
+                        Billingo_Logger::info("Szállítási kupon ÁFA kulcsa: {$vatCode}");
+                    } else {
+                        // Normál kupon esetén az első termék ÁFA kulcsát használjuk
+                        $firstItem = reset($items);
+                        $firstItemData = $firstItem ? $firstItem->get_data() : null;
+                        $vatCode = $firstItemData ? $this->getCalculatedDateForItem('vat', $firstItemData)->value ?? VatEnum::PERCENT_27->value : VatEnum::PERCENT_27->value;
+                    }
+                    
+                    if($vatCode == null){
+                        $vatCode = VatEnum::PERCENT_0->value;
+                    }
+                    
+                    $discountItem = new DocumentProductData([
+                        'name' => __('Kupon kedvezmény', 'billingo'),
+                        'quantity' => 1,
+                        'unit_price' => -$couponDiscount,
+                        'unit_price_type' => UnitPriceTypeEnum::GROSS->value,
+                        'unit' => $this->getCalculatedDateForItem('unit'),
+                        'vat' => $vatCode,
+                    ]);
+
+                    // Áfa felülírás szállítási kupon esetén
+                    if ($isShippingCoupon && wcFlexibleIsTrue(get_option('wc_billingo_tax_override_include_carrier'))) {
+                        $discountItem = $this->overrideTax($discountItem);
+                    } elseif (!$isShippingCoupon && wcFlexibleIsTrue(get_option('wc_billingo_tax_override'))) {
+                        // Normál kupon esetén a standard ÁFA felülírás
+                        $discountItem = $this->overrideTax($discountItem);
+                    }
+                    
+                    $productItems[] = $discountItem;
+                    Billingo_Logger::info("Kupon kedvezmény tétel hozzáadva: {$couponCode} (-{$couponDiscount} {$this->order->get_currency()}) " . ($isShippingCoupon ? "[SZÁLLÍTÁSI KUPON]" : "[TERMÉK KUPON]"));
+                }
             }
         }
         
@@ -461,7 +492,7 @@ class Billingo_Document_Generator
                     // Szállítási tétel létrehozása a tényleges összeggel
                     $shippingItem = new DocumentProductData([
                         'name' => !empty($shippingMethodTitle) 
-                            ? __('Szállítás - ', 'billingo') . $shippingMethodTitle 
+                            ? $shippingMethodTitle 
                             : __('Szállítás', 'billingo'),
                         'quantity' => 1,
                         'unit_price' => $shippingVatCalculated,
@@ -471,13 +502,17 @@ class Billingo_Document_Generator
                         'comment' => ''
                     ]);
                     
+                    //áfa felülírás szállítási költség esetén is
+                    if(wcFlexibleIsTrue(get_option('wc_billingo_tax_override_include_carrier'))){
+                        $shippingItem = $this->overrideTax($shippingItem);
+                    }
+
                     $productItems[] = $shippingItem;
                     Billingo_Logger::info('Szállítási tétel hozzáadva: ' . $shippingMethodTitle . ' (' . $shippingTotal . ' ' . $this->order->get_currency() . ')');
                 }
             }
-        }
-        // Ha nincs szállítási költség, de a "mindig látszódjon" beállítás aktív, akkor 0 összegű tételt adunk hozzá
-        if (wcFlexibleIsTrue(get_option('wc_billingo_always_add_carrier'))) {
+        }elseif (wcFlexibleIsTrue(get_option('wc_billingo_always_add_carrier')) && !$hasShippingCost && !empty($shippingMethods)) {
+             // Ha a szállítási költség nulla, de a "mindig látszódjon" beállítás aktív, akkor 0 összegű tételt adunk hozzá
             Billingo_Logger::info('Nincs szállítási költség, de a "Szállító mindig látszódjon" beállítás aktív - 0 összegű tétel hozzáadása');
             
             if (!empty($shippingMethods)) {
@@ -486,7 +521,7 @@ class Billingo_Document_Generator
                     
                     $shippingItem = new DocumentProductData([
                         'name' => !empty($shippingMethodTitle) 
-                            ? __('Szállítás - ', 'billingo') . $shippingMethodTitle 
+                            ? $shippingMethodTitle 
                             : __('Szállítás', 'billingo'),
                         'quantity' => 1,
                         'unit_price' => 0,
@@ -496,6 +531,10 @@ class Billingo_Document_Generator
                         'comment' => ''
                     ]);
                     
+                    // áfa felülírás ha kell
+                    if(wcFlexibleIsTrue(get_option('wc_billingo_tax_override_include_carrier'))){
+                        $shippingItem = $this->overrideTax($shippingItem);
+                    }
                     $productItems[] = $shippingItem;
                     Billingo_Logger::info('Ingyenes szállítási tétel hozzáadva: ' . $shippingMethodTitle . ' (0 összegű)');
                     
@@ -516,7 +555,7 @@ class Billingo_Document_Generator
                     $feeVatCode = $this->getFeeVatCode($fee);
                     $feeItem = new DocumentProductData([
                         'name' => !empty($feeName)
-                            ? __('Tranzakciós költség - ', 'billingo') . $feeName
+                            ? $feeName
                             : __('Tranzakciós költség', 'billingo'),
                         'quantity' => 1,
                         'unit_price' => $feeTotal,
@@ -525,6 +564,12 @@ class Billingo_Document_Generator
                         'vat' => $feeVatCode->value,
                         'comment' => ''
                     ]);
+
+                    // áfa felülírás ha kell
+                    if(wcFlexibleIsTrue(get_option('wc_billingo_tax_override'))){
+                        $feeItem = $this->overrideTax($feeItem);
+                    }
+
                     $productItems[] = $feeItem;
                     Billingo_Logger::info('Tranzakciós költség tétel hozzáadva: ' . $feeName . ' (' . $feeTotal . ' ' . $this->order->get_currency() . ')');
                 }
@@ -704,38 +749,48 @@ class Billingo_Document_Generator
      * @param array $items
      * @return array
      */
-    private function overrideTax(array $items): array
+    private function overrideTax(array|DocumentProductData $items): array|DocumentProductData
     {
-        Billingo_Logger::info('Áfa felülírás beállítása...');
+        if(is_array($items)){
+            foreach ($items as $item) {
+                $this->overrideTaxOnSingleItem($item);
+            }
+        }else{
+            $this->overrideTaxOnSingleItem($items);
+        }
+        return $items;
+    }
+
+    private function overrideTaxOnSingleItem(DocumentProductData $item): DocumentProductData
+    {
+
         $typeisZero = get_option('wc_billingo_tax_override_choice') == 0;
-        Billingo_Logger::info('Áfa felülírás beállítása: ' . $typeisZero);
+        Billingo_Logger::info('=== Áfa felülírás a tételen: ' . $item->name . '===');
+        if($typeisZero){
+            Billingo_Logger::info('Áfa felülírás beállítása 0%-os esetén... ' . $item->name);
+        }else{
+            Billingo_Logger::info('Áfa felülírás beállítása nem 0%-os esetén... ' . $item->name);
+        }
 
         $entitlemet = $typeisZero
             ? get_option('wc_billingo_tax_override_zero_entitlements')
             : get_option('wc_billingo_tax_override_entitlements');
-        Billingo_Logger::info('Áfa felülírás entitlement: ' . $entitlemet);
+        Billingo_Logger::info('Áfa felülírás jogcím: ' . $entitlemet);
         $value = $typeisZero
             ? $entitlemet
             : VatEnum::from(get_option('wc_billingo_tax_override_value'))->value;
-        Billingo_Logger::info('Áfa felülírás VAT ÉRTÉKE: ' . $value);
-
-        //todo megállapítani hogy az érkező tétel szállítási költség-e és ha igen akkor megvizsgálni hogy a wc_billingo_tax_override_include_carrier beállítás aktív-e és ha szükséges akkor a szállítási költség áfáját is írjuk felül
+        Billingo_Logger::info('Áfa felülírás ÁFA ÉRTÉKE: ' . $value);
 
         if (!$typeisZero) {
-            foreach ($items as $item) {
-                $item->vat = $value;
-                $item->entitlement = $entitlemet;
-            }
+            $item->vat = $value;
+            $item->entitlement = $entitlemet;
         } else {
-            foreach ($items as $item) {
-
-                    $item->vat = $value;
+            $item->vat = $value;
         }
+        Billingo_Logger::info('=== ===');
+        return $item;
     }
-
-        return $items;
-    }
-
+    
     private function shouldSendEmail(string $type): bool
     {
         $wcEmailId = match($type){
@@ -759,6 +814,71 @@ class Billingo_Document_Generator
         $productId = $item->get_product_id();
 
         return get_post_meta($productId, '_product_attributes',true)[$fieldName]['value'] ?? false;
+    }
+
+    /**
+     * Megállapítja, hogy egy kupon a szállításhoz tartozik-e
+     * (WooCommerce Extended Coupon Features FREE plugin alapján)
+     * 
+     * @param string $couponCode A kupon kódja
+     * @return bool True, ha szállítási kupon, false egyébként
+     */
+    private function isCouponForShipping(string $couponCode): bool
+    {
+        // Lekérjük a kupon objektumot
+        $coupon = new \WC_Coupon($couponCode);
+        
+        if (!$coupon->get_id()) {
+            return false;
+        }
+        
+        // Ellenőrizzük a WooCommerce Extended Coupon Features plugin meta értékét
+        $shippingRestrictions = get_post_meta($coupon->get_id(), '_wjecf_shipping_restrictions', true);
+        
+        if (empty($shippingRestrictions)) {
+            return false;
+        }
+        
+        // Ha string formátumban van, deserialize-áljuk
+        if (is_string($shippingRestrictions)) {
+            $shippingRestrictions = maybe_unserialize($shippingRestrictions);
+        }
+        
+        // Ha nem tömb, akkor nem tudunk mit kezdeni vele
+        if (!is_array($shippingRestrictions)) {
+            return false;
+        }
+        
+        // Ellenőrizzük, hogy van-e benne "method:" prefix
+        // Ez jelzi, hogy szállítási módszerhez van kötve a kupon
+        foreach ($shippingRestrictions as $restriction) {
+            if (is_string($restriction) && strpos($restriction, 'method:') === 0) {
+                Billingo_Logger::info("Kupon '{$couponCode}' szállítási kuponként azonosítva: {$restriction}");
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * Szállítási kupon ÁFA kulcsának meghatározása
+     * A rendelés szállítási módszeréből próbálja meghatározni az ÁFA kulcsot
+     * 
+     * @return VatEnum
+     */
+    private function getShippingCouponVatCode(): VatEnum
+    {
+        $shippingMethods = $this->order->get_shipping_methods();
+        
+        if (!empty($shippingMethods)) {
+            // Az első szállítási módszer ÁFA kulcsát használjuk
+            $firstShippingMethod = reset($shippingMethods);
+            return $this->getShippingVatCode($firstShippingMethod);
+        }
+        
+        // Ha nincs szállítási módszer, akkor a standard 27%-ot használjuk
+        return VatEnum::PERCENT_27;
     }
 
 }

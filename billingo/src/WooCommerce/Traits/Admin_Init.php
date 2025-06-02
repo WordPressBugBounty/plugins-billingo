@@ -178,23 +178,15 @@ trait Admin_Init
             }
         }
 
-        // Process all documents for display
         $processedDocuments = [];
         if (!empty($allDocuments)) {
             foreach ($allDocuments as $doc) {
-                $docResponse = $client->document()->getById($doc['billingo_id'])->getResponse();
-                $docConnectionError = $docResponse->getStatusCode() === Response::HTTP_OK;
-                $docData = $docConnectionError
-                    ? $docResponse->getData()->toArray()
-                    : null;
-
-                if (!is_null($docData)) {
-                    $processedDocuments[] = [
-                        'database_record' => $doc,
-                        'document_data' => $docData,
-                        'link' => $doc['link']
-                    ];
-                }
+                $processedDocuments[] = [
+                    'database_record' => $doc,
+                    'document_data' => $doc,
+                    'link' => $doc['link']
+                ];
+            
             }
             
             // Sort by creation date (newest first)
