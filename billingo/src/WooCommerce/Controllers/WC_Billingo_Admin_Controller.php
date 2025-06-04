@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
 use App\Billingo\WooCommerce\Service\Billingo_Connection_Tester;
 use App\Billingo\Service\BillingoClient;
 use App\Billingo\WooCommerce\Service\Billingo_Logger;
+use App\Billingo\WooCommerce\Repositories\Billingo_Repositroy;
 /**
  * The Billingo plugin admin interface controller
  * This class handles the display of the admin interface and the storage of the settings
@@ -126,6 +127,7 @@ class WC_Billingo_Admin_Controller
      */
     public function render_settings_page(): void
     {
+        Billingo_Repositroy::validateAndAddMissingColumns();
         try {
             echo '<div class="wrap woocommerce">';
             echo '<form method="post" id="mainform" action="" enctype="multipart/form-data">';

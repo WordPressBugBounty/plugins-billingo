@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Billingo Official for WooCommerce
- * Version: 4.1.3
+ * Version: 4.1.4
  * Requires at least: 6.7
  * Requires PHP: 8.1
  * License: GPL v2 or later
@@ -12,7 +12,6 @@
 
  */
 
-//stop install if php version is less than 8.1
 if (version_compare(PHP_VERSION, '8.1', '<')) {
     wp_die('A Billingo új 4.0-as verziójú modul használatához legalább PHP 8.1 verzió szükséges.');
 }
@@ -50,6 +49,9 @@ function billingo_plugin_updated($upgrader_object, $options) {
         if (isset($options['plugins'])) {
             foreach ($options['plugins'] as $plugin) {
                 if ($plugin == plugin_basename(__FILE__)) {
+                    // Run database upgrade to ensure all new fields are created
+                    Billingo_Repositroy::validateAndAddMissingColumns();
+                    
                     // Set flag to show settings notification
                     update_option('wc_billingo_show_settings_notification', true);
                     break;

@@ -101,6 +101,12 @@ trait Standard_Init
             $order_id = (int)$_POST['order'];
         }
 
+        // Get the order to retrieve the billing email
+        $order = wc_get_order($order_id);
+        if (!$order) {
+            wp_send_json_error(['error' => true, 'messages' => __('A rendelés nem található', 'billingo')]);
+        }
+
         $row_in_db = $billingo_repository
             ->where('order_id', $order_id)
             ->where('type', TypeEnum::INVOICE->value)
@@ -109,7 +115,18 @@ trait Standard_Init
         $response = ['error' => false];
         $client = new BillingoClient(get_option('wc_billingo_api_key'));
 
-        $billingoResponse = $client->document()->cancelDocument($billingo_id)->getResponse();
+        //handles the email sending for the storno because it is not a document genaration, just a cancellation request to the server
+        if(in_array(get_option('wc_billingo_storno_email'), ['both', 'billingo'])) {
+            $cancellationData = [
+                'cancellation_recipients' => $order->get_billing_email()
+            ];
+
+            Billingo_Logger::info('Cancelling invoice with email notification to: ' . $order->get_billing_email());
+
+            $billingoResponse = $client->document()->cancelDocument($billingo_id, $cancellationData)->getResponse();
+        }else{
+            $billingoResponse = $client->document()->cancelDocument($billingo_id)->getResponse();
+        }
         if ($billingoResponse->getStatusCode() === Response::HTTP_OK) {
             $data = $billingoResponse->getData();
 
@@ -118,6 +135,7 @@ trait Standard_Init
 
             $billingo_repository->update($row_in_db['id'], ['canceled_by' => $data->id]);
             $new_db_row = $billingo_repository->createFromDocument($order_id, $data);
+            Billingo_Logger::info('Invoice cancel data: ' . json_encode($data->toArray()));
 
             Billingo_Logger::info('Invoice cancel SUCCESFULL:' . $new_db_row['id']);
         } else {

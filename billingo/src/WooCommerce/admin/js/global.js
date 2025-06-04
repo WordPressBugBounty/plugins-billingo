@@ -447,4 +447,113 @@ jQuery(document).ready(function ($) {
 
     }
     addBillingoLogoToMainNav();
+
+    // Handle document icons in orders admin page
+    function handleOrderDocumentIcons() {
+        // Only run on orders admin page and for screens wider than 370px
+        if (window.location.href.indexOf('page=wc-orders') !== -1 && window.innerWidth >= 370) {
+            var screenWidth = window.innerWidth;
+            
+            // Handle different DOM structures for different screen sizes
+            if (screenWidth < 782) {
+                // Below 782px: Look for icons in ANY column and move to order_number column
+                jQuery('tr').each(function() {
+                    var $row = jQuery(this);
+                    var $orderNumberColumn = $row.find('.order_number.column-order_number');
+                    var $orderStatusColumn = $row.find('.order_status.column-order_status');
+                    var $statusMark = $orderNumberColumn.find('.order_status.small-screen-only .order-status');
+                    
+                    // Look for icons in both columns
+                    var $documentIcons = $orderStatusColumn.find('.billingo-document-icons');
+                    if ($documentIcons.length === 0) {
+                        $documentIcons = $orderNumberColumn.find('.billingo-document-icons');
+                    }
+                    
+                    if ($documentIcons.length > 0 && $statusMark.length > 0) {
+                        // Move icons to order_number column, before the mark (if not already there)
+                        if ($statusMark.prev('.billingo-document-icons').length === 0) {
+                            $documentIcons.detach();
+                            $statusMark.before($documentIcons);
+                        }
+                        
+                        // Style for small screens
+                        $documentIcons.css({
+                            'margin-left': '0',
+                            'margin-right': '5px',
+                            'display': 'inline-block',
+                            'vertical-align': 'middle'
+                        });
+                        
+                        // Style the status mark to ensure proper alignment
+                        $statusMark.css({
+                            'display': 'inline-block',
+                            'vertical-align': 'middle'
+                        });
+                        
+                        // Show medium screen version only
+                        $documentIcons.find('.billingo-docs-large-screen').css('display', 'none');
+                        $documentIcons.find('.billingo-docs-medium-screen').css('display', 'inline-block');
+                    }
+                });
+            } else {
+                // Above 782px: Move icons back to order_status column
+                jQuery('tr').each(function() {
+                    var $row = jQuery(this);
+                    var $orderNumberColumn = $row.find('.order_number.column-order_number');
+                    var $orderStatusColumn = $row.find('.order_status.column-order_status');
+                    var $statusMark = $orderStatusColumn.find('.order-status');
+                    
+                    // Look for icons in both columns
+                    var $documentIcons = $orderNumberColumn.find('.billingo-document-icons');
+                    if ($documentIcons.length === 0) {
+                        $documentIcons = $orderStatusColumn.find('.billingo-document-icons');
+                    }
+                    
+                    if ($documentIcons.length > 0 && $statusMark.length > 0) {
+                        // Move icons to order_status column, after the mark (if not already there)
+                        if ($statusMark.next('.billingo-document-icons').length === 0) {
+                            $documentIcons.detach();
+                            $statusMark.after($documentIcons);
+                        }
+                        
+                        // Style for large screens
+                        $documentIcons.css({
+                            'margin-left': '5px',
+                            'margin-right': '0',
+                            'display': 'inline-block',
+                            'vertical-align': 'middle'
+                        });
+                        
+                        // Style the status mark to ensure proper alignment
+                        $statusMark.css({
+                            'display': 'inline-block',
+                            'vertical-align': 'middle'
+                        });
+                        
+                        // Handle responsive display for large vs medium screens
+                        if (screenWidth >= 1300) {
+                            // Large screens: show large screen version, hide medium screen version
+                            $documentIcons.find('.billingo-docs-large-screen').css('display', 'inline-block');
+                            $documentIcons.find('.billingo-docs-medium-screen').css('display', 'none');
+                        } else {
+                            // Medium screens: show medium screen version, hide large screen version
+                            $documentIcons.find('.billingo-docs-large-screen').css('display', 'none');
+                            $documentIcons.find('.billingo-docs-medium-screen').css('display', 'inline-block');
+                        }
+                    }
+                });
+            }
+        } else if (window.innerWidth < 370) {
+            // Hide document icons on very small screens
+            jQuery('.billingo-document-icons').hide();
+        }
+    }
+
+    // Run on page load
+    handleOrderDocumentIcons();
+    
+    // Run when screen is resized
+    jQuery(window).on('resize', function() {
+        handleOrderDocumentIcons();
+    });
 });

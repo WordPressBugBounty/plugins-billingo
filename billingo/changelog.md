@@ -1,4 +1,7 @@
 # Changelog
+-**4.1.4** - 2025.06.04
+- Add module compatibility
+
 -**4.0.5** - 2025.05.28
 - Bugfix Tax override problem
 

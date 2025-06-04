@@ -83,7 +83,7 @@ class Billingo_Document_Generator
     private function make(TypeEnum $type): ?DocumentInsert
     {
         Billingo_Logger::info('Order ID: ' . $this->order->get_id());
-        
+
         $this->currentDocumentType = $type->value;
 
         $this->collectDocumentData();
@@ -220,6 +220,15 @@ class Billingo_Document_Generator
 
     private function findOrCreatePartner(string $name): ?int
     {
+        // Get VAT number that was already retrieved in collectDocumentData
+        $vatNumberFormCustom = get_option('wc_billingo_vat_number_form_custom');
+        Billingo_Logger::info('VAT number form custom: ' . $vatNumberFormCustom);
+        $vatNumber = null;
+        if(!empty($vatNumberFormCustom)){
+            $vatNumber = $this->order->get_meta($vatNumberFormCustom, true);
+            Billingo_Logger::info('VAT number: ' . $vatNumber);
+        }
+
         $descriptions = [
             'name' => $name,
             'address' => [
@@ -229,6 +238,11 @@ class Billingo_Document_Generator
                 'address' => $this->order->get_billing_address_1(),
             ],
         ];
+        // Add VAT number to partner data if available
+        if (!empty($vatNumber)) {
+            $descriptions['taxcode'] = $vatNumber;
+            Billingo_Logger::info("VAT number found for partner: {$name}");
+        }
 
         $foundPartner = $this->findPartner($descriptions);
 
@@ -249,7 +263,7 @@ class Billingo_Document_Generator
 
                 $createdPartnerId = $createdPartner->getData()->id;
 
-                Billingo_Logger::info("Partner created with ID: {$createdPartnerId}");
+                Billingo_Logger::info("Partner created with ID: {$createdPartnerId}" . (!empty($vatNumber) ? " and VAT number: {$vatNumber}" : ""));
             } else {
 
                 Billingo_Logger::error('Partner created FAILED: ' . json_encode($createdPartner->getErrors()));
@@ -339,6 +353,40 @@ class Billingo_Document_Generator
                     ? $itemData['total'] / $itemData['quantity'] 
                     : 0);
             
+            // Vizsgáljuk meg a WooCommerce árazási beállításokat
+            $price_includes_tax = wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'));
+            $item_is_taxable = $item->get_total_tax() > 0;
+            
+            Billingo_Logger::info('Price calculation - Original unit price: ' . $unitPrice);
+            Billingo_Logger::info('Price includes tax setting: ' . ($price_includes_tax ? 'yes' : 'no'));
+            Billingo_Logger::info('Item is taxable: ' . ($item_is_taxable ? 'yes' : 'no'));
+            Billingo_Logger::info('Item total: ' . $item->get_total() . ', Item tax: ' . $item->get_total_tax() . ', Quantity: ' . $item->get_quantity());
+            
+            // Mindig bruttó árat küldünk a Billingo-nak
+            // A bruttó ár = nettó ár + ÁFA (item total + item tax)
+            if(!$price_includes_tax && $item_is_taxable){
+                // WooCommerce nettó árazás: Regular price-hoz tartozó ÁFA kiszámítása
+                $vatObject = $this->getCalculatedDateForItem('vat', $itemData);
+                $vatRate = 0;
+                if ($vatObject && $vatObject->value) {
+                    $vatRate = $this->getVatRateFromCode($vatObject->value);
+                }
+                
+                $regularPrice = $product ? floatval($product->get_regular_price()) : 0;
+                $regularPriceTax = $regularPrice * ($vatRate / 100);
+                
+                $unitPrice = $regularPrice + $regularPriceTax;
+                
+                Billingo_Logger::info('Regular price: ' . $regularPrice . ', VAT rate: ' . $vatRate . '%, Tax amount: ' . $regularPriceTax . ', Final gross price: ' . $unitPrice);
+            } else {
+                // WooCommerce bruttó árazás VAGY nem adóköteles tétel: a regular price már bruttó
+                $unitPrice = $product ? floatval($product->get_regular_price()) : 0;
+                
+                Billingo_Logger::info('WC bruttó árazás vagy nem adóköteles - Regular price as gross: ' . $unitPrice);
+            }
+            
+            Billingo_Logger::info('Final gross unit price sent to Billingo: ' . $unitPrice);
+
             // Dokumentum elem létrehozása
             try {
                 $originalItem = new DocumentProductData([
@@ -377,15 +425,26 @@ class Billingo_Document_Generator
                         $vatObject = VatEnum::PERCENT_0->value;
                     }
                     $vatRate = $this->getVatRateFromCode($vatObject);
-                    $grossDiscount = ($regularPrice - $salePrice) * ($itemData['quantity'] ?? 1); //ezt a termékkedvezményt csak azért vesszük bruttónak, mert mindent bruttóként kezelünk
+                    $netDiscount = ($regularPrice - $salePrice) * ($itemData['quantity'] ?? 1);
+                    $grossDiscount = $netDiscount * (1 + ($vatRate / 100));
+ 
+                    // WooCommerce árazási beállítás újra lekérése a kedvezmény számításhoz
+                    $priceIncludesTaxForDiscount = wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'));
+                    $itemIsTaxableForDiscount = $item->get_total_tax() > 0;
+                    
+                    if(!$priceIncludesTaxForDiscount && $itemIsTaxableForDiscount){
+                        $discountAmount = $grossDiscount;
+                    }else{
+                        $discountAmount = $netDiscount;
+                    }
 
                     Billingo_Logger::info('Kedvezmény tétel hozzáadása bruttó értékkel: ' . $grossDiscount);
 
                     // Kedvezmény tétel hozzáadása bruttó értékkel
                     $discountItem = new DocumentProductData([
                         'name' => __('Kedvezmény - ', 'billingo') . ($itemData['name'] ?? 'Termék'),
-                        'quantity' => 1,
-                        'unit_price' => -$grossDiscount,
+                        'quantity' => $itemData['quantity'] ?? 1,
+                        'unit_price' => -$discountAmount / ($itemData['quantity'] ?? 1),
                         'unit_price_type' => UnitPriceTypeEnum::GROSS->value,
                         'unit' => $this->getCalculatedDateForItem('unit'),
                         'vat' => $this->getCalculatedDateForItem('vat', $itemData)->value ?? '0%',
@@ -685,9 +744,16 @@ class Billingo_Document_Generator
 
     private function getNote(): string
     {
+        $defaultNoteOptionKey = get_option('wc_billingo_note');
+        $defaultNote = '';
+        
+        if (!empty($defaultNoteOptionKey)) {
+            $defaultNote = $defaultNoteOptionKey;
+        }
+        
         $note = empty($this->order->get_customer_note())
-            ? get_option(get_option('wc_billingo_note'))
-            : $this->order->get_customer_note();
+            ? $defaultNote
+            : $this->order->get_customer_note() ?? '';
 
         if (isset($this->manualIncome['note']) && !empty($this->manualIncome['note'])) {
             $note = $this->manualIncome['note'];

@@ -70,8 +70,23 @@ class Billingo_Controller
 
     public function cancelDocument(int $billingoId, array $body = []): bool
     {
-        $response = $this->client->document()->cancelDocument($billingoId, $body)->getResponse();
+        //handles the email sending for the storno because it is not a document genaration, just a cancellation request to the server
+        //todo: refactor: Standard_Init.php ajax_stornoInvoice() also use the same logic, move to 
+        if(in_array(get_option('wc_billingo_storno_email'), ['both', 'billingo'])) {
+        if (empty($body)) {
+            $order = wc_get_order($this->orderId);
+            if ($order && $order->get_billing_email()) {
+                $body = [
+                    'cancellation_recipients' => $order->get_billing_email()
+                ];
+                Billingo_Logger::info('Auto-setting cancellation email recipient for order ' . $this->orderId . ': ' . $order->get_billing_email());
+            }
+        }
 
+            $response = $this->client->document()->cancelDocument($billingoId, $body)->getResponse();
+        }else{
+            $response = $this->client->document()->cancelDocument($billingoId)->getResponse();
+        }
         if ($response->getStatusCode() === Response::HTTP_OK) {
 
             $canceledDocument = $response->getData();

@@ -28,6 +28,7 @@ enum TypeEnum: string
             self::INVOICE => 'Számla',
             self::PROFORMA => 'Díjbekérő',
             self::DRAFT => 'Piszkozat',
+            self::CANCELLATION => 'Sztornó',
         };
     }
 }
