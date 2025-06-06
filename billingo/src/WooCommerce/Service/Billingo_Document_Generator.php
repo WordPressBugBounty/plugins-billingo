@@ -432,7 +432,10 @@ class Billingo_Document_Generator
                 // Itt is az elmentett regular price-t használjuk, ha elérhető
                 $regularPrice = $this->getRegularPriceFromItemMeta($item, $product);
                 $salePrice = $this->getSalePriceFromItemMeta($item);
-                
+                if(wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'))){
+                    $salePrice = $salePrice * (1 + ($this->getVatRateFromCode($this->getCalculatedDateForItem('vat', $itemData)->value) / 100));
+                }
+
                 Billingo_Logger::info('Discount calculation - Using regular price: ' . $regularPrice . ', Sale price: ' . $salePrice);
                 
                 if ($regularPrice > $salePrice) {
