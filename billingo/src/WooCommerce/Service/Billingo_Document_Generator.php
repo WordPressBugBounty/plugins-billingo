@@ -129,9 +129,24 @@ class Billingo_Document_Generator
 
         $currency = $this->order->get_currency() ?: 'HUF';
 
+        // Bankszámla ID meghatározása deviza alapján
+        $bankAccountId = $this->order->get_currency() === 'EUR' 
+            ? get_option('wc_billingo_bank_account_eur') 
+            : get_option('wc_billingo_bank_account_huf');
+        
+        // Ha üres string vagy nem numerikus, akkor nullra állítjuk
+        if (empty($bankAccountId) || !is_numeric($bankAccountId)) {
+            $bankAccountId = null;
+        } else {
+            $bankAccountId = (int)$bankAccountId;
+        }
+        
+        Billingo_Logger::info('Bank account ID: ' . ($bankAccountId ?: 'not set (using default)') . ' Currency: ' . $this->order->get_currency() );
+
         $document = [
             'partner_id' => $this->findOrCreatePartner($this->getPartnerName()),
             'block_id' => (int)get_option('wc_billingo_invoice_block'),
+            'bank_account_id' => $bankAccountId,
             'fulfillment_date' => isset($this->manualIncome['completed'])
                 ? $this->manualIncome['completed']
                 : wp_date('Y-m-d', time()),
@@ -347,11 +362,7 @@ class Billingo_Document_Generator
             }
             
             // Az EREDETI árat használjuk, nem az akciós árat
-            $unitPrice = $product && method_exists($product, 'get_regular_price') && $product->get_regular_price() 
-                ? floatval($product->get_regular_price()) 
-                : (isset($itemData['total']) && isset($itemData['quantity']) && $itemData['quantity'] > 0 
-                    ? $itemData['total'] / $itemData['quantity'] 
-                    : 0);
+            $unitPrice = $this->getRegularPriceFromItemMeta($item, $product);
             
             // Vizsgáljuk meg a WooCommerce árazási beállításokat
             $price_includes_tax = wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'));
@@ -372,7 +383,7 @@ class Billingo_Document_Generator
                     $vatRate = $this->getVatRateFromCode($vatObject->value);
                 }
                 
-                $regularPrice = $product ? floatval($product->get_regular_price()) : 0;
+                $regularPrice = $unitPrice; // Már kiszámítottuk a helper metódussal
                 $regularPriceTax = $regularPrice * ($vatRate / 100);
                 
                 $unitPrice = $regularPrice + $regularPriceTax;
@@ -380,7 +391,7 @@ class Billingo_Document_Generator
                 Billingo_Logger::info('Regular price: ' . $regularPrice . ', VAT rate: ' . $vatRate . '%, Tax amount: ' . $regularPriceTax . ', Final gross price: ' . $unitPrice);
             } else {
                 // WooCommerce bruttó árazás VAGY nem adóköteles tétel: a regular price már bruttó
-                $unitPrice = $product ? floatval($product->get_regular_price()) : 0;
+                // Az unitPrice már kiszámítottuk a helper metódussal, nincs mit tenni
                 
                 Billingo_Logger::info('WC bruttó árazás vagy nem adóköteles - Regular price as gross: ' . $unitPrice);
             }
@@ -413,11 +424,16 @@ class Billingo_Document_Generator
                 // Folytatjuk a következő elemmel
                 continue;
             }
-            
+            Billingo_Logger::info('Kedvezmény számítás');
+            Billingo_Logger::info('Item name: ' . $itemData['name']);
+            Billingo_Logger::info('Regular price: ' . $this->getRegularPriceFromItemMeta($item, $product) . ', Sale price: ' . $this->getSalePriceFromItemMeta($item));
             // Termék akciós kedvezmény hozzáadása - csak akkor, ha tényleg akciós a termék
-            if ($product && method_exists($product, 'is_on_sale') && $product->is_on_sale() && $product->get_sale_price()) {
-                $regularPrice = floatval($product->get_regular_price());
-                $salePrice = floatval($product->get_sale_price());
+            if (($this->getSalePriceFromItemMeta($item) > 0) && $this->getRegularPriceFromItemMeta($item, $product) > $this->getSalePriceFromItemMeta($item)) {
+                // Itt is az elmentett regular price-t használjuk, ha elérhető
+                $regularPrice = $this->getRegularPriceFromItemMeta($item, $product);
+                $salePrice = $this->getSalePriceFromItemMeta($item);
+                
+                Billingo_Logger::info('Discount calculation - Using regular price: ' . $regularPrice . ', Sale price: ' . $salePrice);
                 
                 if ($regularPrice > $salePrice) {
                     $vatObject = $this->getCalculatedDateForItem('vat', $itemData)->value ?? '0%';
@@ -485,18 +501,29 @@ class Billingo_Document_Generator
                     if ($isShippingCoupon) {
                         // Szállítási kupon esetén a szállítási ÁFA kulcsot használjuk
                         $vatCode = $this->getShippingCouponVatCode()->value ?? VatEnum::PERCENT_27->value;
+                        //viszont ha a webáruházban a szállítási költség nettóban van megadva beállítás aktív, akkor a kuponra is rá kell számolni az áfát
+                        if(wcFlexibleIsTrue(get_option('wc_billingo_tax_shipping_pirce_type_is_net'))){
+                            $couponDiscount = $couponDiscount * (1 + ($vatCode / 100));
+                        }
+
                         Billingo_Logger::info("Szállítási kupon ÁFA kulcsa: {$vatCode}");
                     } else {
                         // Normál kupon esetén az első termék ÁFA kulcsát használjuk
                         $firstItem = reset($items);
                         $firstItemData = $firstItem ? $firstItem->get_data() : null;
                         $vatCode = $firstItemData ? $this->getCalculatedDateForItem('vat', $firstItemData)->value ?? VatEnum::PERCENT_27->value : VatEnum::PERCENT_27->value;
+                        //ha a woocommerce beállítása szerint taxable-minden item, akkor a kupon is úgy fög működni és arra is még rárakja az áfát
+                        if(!wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'))){
+                            $couponDiscount = $couponDiscount * (1 + ($vatCode / 100));
+                        }
+
+
                     }
                     
                     if($vatCode == null){
                         $vatCode = VatEnum::PERCENT_0->value;
                     }
-                    
+
                     $discountItem = new DocumentProductData([
                         'name' => __('Kupon kedvezmény', 'billingo'),
                         'quantity' => 1,
@@ -612,6 +639,10 @@ class Billingo_Document_Generator
                 if ($feeTotal != 0) { // Pozitív vagy negatív összeg esetén is hozzáadjuk
                     // Tranzakciós díj ÁFA kulcsának meghatározása
                     $feeVatCode = $this->getFeeVatCode($fee);
+                    //ha a woocommerce beállítása szerint taxable-minden item, akkor a tranzakciós díj is úgy fög működni és arra is még rárakja az áfát
+                    if(!wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'))){
+                        $feeTotal = $feeTotal * (1 + ($feeVatCode->value / 100));
+                    }
                     $feeItem = new DocumentProductData([
                         'name' => !empty($feeName)
                             ? $feeName
@@ -945,6 +976,73 @@ class Billingo_Document_Generator
         
         // Ha nincs szállítási módszer, akkor a standard 27%-ot használjuk
         return VatEnum::PERCENT_27;
+    }
+
+    /**
+     * Lekéri a termék regular price-ját az order item meta-ból vagy a termékből
+     * 
+     * @param WC_Order_Item $item Order item objektum
+     * @param WC_Product|null $product Termék objektum (opcionális)
+     * @return float Regular price
+     */
+    private function getRegularPriceFromItemMeta($item, $product = null): float
+    {
+        // Először próbáljuk meg lekérni az elmentett regular price-t az order item meta-ból
+        $savedRegularPrice = wc_get_order_item_meta($item->get_id(), 'wc_billingo_product_full_price_without_sale', true);
+        
+        if (!empty($savedRegularPrice)) {
+            Billingo_Logger::info('Using saved regular price from order item meta: ' . $savedRegularPrice);
+            return floatval($savedRegularPrice);
+        }
+
+
+        
+        // Ha nincs elmentve, akkor a termékből lekérjük
+        if ($product && method_exists($product, 'get_regular_price')) {
+            $regularPrice = $product->get_regular_price();
+            if (!empty($regularPrice)) {
+                Billingo_Logger::info('Using current regular price from product: ' . $regularPrice);
+                return floatval($regularPrice);
+            }
+        }
+        
+        // Fallback: ha semmi más nem működik, az item total/quantity arányából számoljuk
+        $itemData = $item->get_data();
+        if (isset($itemData['total']) && isset($itemData['quantity']) && $itemData['quantity'] > 0) {
+            $calculatedPrice = $itemData['total'] / $itemData['quantity'];
+            Billingo_Logger::info('Using calculated price from item total/quantity: ' . $calculatedPrice);
+            return floatval($calculatedPrice);
+        }
+        
+        Billingo_Logger::warning('Could not determine regular price, returning 0');
+        return 0.0;
+    }
+
+    /**
+     * Lekéri a termék akciós árát az order item meta-ból vagy a termékből
+     * 
+     * @param WC_Order_Item $item Order item objektum
+     * @return float Sale price
+     */
+    private function getSalePriceFromItemMeta($item): float
+    {
+
+
+        $usedCoupons = $this->order->get_coupon_codes();
+        $usedCouponDiscount = 0;
+        foreach ($usedCoupons as $couponCode) {
+            if(!$this->isCouponForShipping($couponCode)){
+                $coupon = new \WC_Coupon($couponCode);
+                $usedCouponDiscount += $coupon->get_amount();
+            }
+        }
+        $savedSalePrice = wc_get_order_item_meta($item->get_id(), 'wc_billingo_product_full_price_with_sale', true);
+        //a subtotalt kell visszadni, ha nincs savedSalePrice mert az a tényleges ár, ha akciós.
+        if (!empty($savedSalePrice)) {
+            return floatval($savedSalePrice );
+        }else{
+            return $item->get_subtotal() / ($item->get_quantity() ?? 1);
+        }
     }
 
 }
