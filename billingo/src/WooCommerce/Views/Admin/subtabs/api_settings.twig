@@ -537,6 +537,11 @@
                                     
                                     {{ billingo_api_connection_message|esc_html_translate }}</span>
                                 </td>
+                                {% if billingo_api_connection_status == 'error' %}
+                                <td class="billingo-api-connection-status-container" style="padding-top: 0px !important;">
+                                    <p class="billingo-field-description-italic" >{{'Kérjük ellenőrizd, hogy rendelkezel-e aktív Billingo előfizetéssel, mivel ez is okozhatja a kapcsolat sikertelenségét.'|esc_html_translate}}</p>
+                                </td>
+                                {% endif %}
                             </tr>
                             <tr valign="top">
                                 <th scope="row" class="billingo-api-settings-field-name-container">

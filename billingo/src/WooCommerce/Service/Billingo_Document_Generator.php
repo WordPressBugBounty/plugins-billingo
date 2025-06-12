@@ -14,6 +14,7 @@ use App\Billingo\Service\BillingoClient;
 use Symfony\Component\HttpFoundation\Response;
 use App\Billingo\WooCommerce\Service\Billingo_Product_Sync;
 use App\Billingo\Enums\CurrencyEnum;
+use App\Billingo\Api\CurrencyApi;
 use WC_Order;
 use WC_Order_Item;
 use WC_Order_Refund;
@@ -155,7 +156,7 @@ class Billingo_Document_Generator
             'paid' => $paidType,
             'language' => $language,
             'currency' => $currency,
-            'conversion_rate' => 1.0,
+            'conversion_rate' => $currency === 'HUF' ? 1.0 : $this->getCurrencyRate($currency, 'HUF'),
             'electronic' => wcFlexibleIsTrue(get_option('wc_billingo_electronic')),
             'items' => $this->createProductItems(),
             'comment' => $this->getNote(),
@@ -327,7 +328,8 @@ class Billingo_Document_Generator
     }
 
     private function createProductItems(): array
-    {
+    {   
+
         $items = $this->order->get_items();
         $productItems = [];
         // check for should sync products to billingo products
@@ -506,7 +508,7 @@ class Billingo_Document_Generator
                         $vatCode = $this->getShippingCouponVatCode()->value ?? VatEnum::PERCENT_27->value;
                         //viszont ha a webáruházban a szállítási költség nettóban van megadva beállítás aktív, akkor a kuponra is rá kell számolni az áfát
                         if(wcFlexibleIsTrue(get_option('wc_billingo_tax_shipping_pirce_type_is_net'))){
-                            $couponDiscount = $couponDiscount * (1 + ($vatCode / 100));
+                            $couponDiscount = $couponDiscount * (1 + ($this->getVatRateFromCode($vatCode) / 100));
                         }
 
                         Billingo_Logger::info("Szállítási kupon ÁFA kulcsa: {$vatCode}");
@@ -517,7 +519,7 @@ class Billingo_Document_Generator
                         $vatCode = $firstItemData ? $this->getCalculatedDateForItem('vat', $firstItemData)->value ?? VatEnum::PERCENT_27->value : VatEnum::PERCENT_27->value;
                         //ha a woocommerce beállítása szerint taxable-minden item, akkor a kupon is úgy fög működni és arra is még rárakja az áfát
                         if(!wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'))){
-                            $couponDiscount = $couponDiscount * (1 + ($vatCode / 100));
+                            $couponDiscount = $couponDiscount * (1 + ($this->getVatRateFromCode($vatCode) / 100));
                         }
 
 
@@ -638,20 +640,33 @@ class Billingo_Document_Generator
             Billingo_Logger::info('Tranzakciós költségek találhatók a rendelésben - hozzáadás a számlához');
             foreach ($fees as $fee) {
                 $feeTotal = floatval($fee->get_total());
+                $feeTax = floatval($fee->get_total_tax());
                 $feeName = $fee->get_name();
+                
+                Billingo_Logger::info('Fee feldolgozása: ' . $feeName . ' - Total: ' . $feeTotal . ', Tax: ' . $feeTax);
+                
                 if ($feeTotal != 0) { // Pozitív vagy negatív összeg esetén is hozzáadjuk
                     // Tranzakciós díj ÁFA kulcsának meghatározása
                     $feeVatCode = $this->getFeeVatCode($fee);
-                    //ha a woocommerce beállítása szerint taxable-minden item, akkor a tranzakciós díj is úgy fög működni és arra is még rárakja az áfát
-                    if(!wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'))){
-                        $feeTotal = $feeTotal * (1 + ($feeVatCode->value / 100));
+                    Billingo_Logger::info('Fee ÁFA kulcs: ' . $feeVatCode->value);
+                    
+                    // A bruttó összeg kiszámítása
+                    $grossAmount = $feeTotal;
+                    
+                    // Ha WooCommerce nettó árazást használ és van ÁFA, akkor hozzáadjuk az ÁFA-t
+                    if (!wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax')) && $feeTax > 0) {
+                        $grossAmount = $feeTotal + $feeTax;
+                        Billingo_Logger::info('Nettó ár + ÁFA: ' . $feeTotal . ' + ' . $feeTax . ' = ' . $grossAmount);
+                    } else {
+                        Billingo_Logger::info('Bruttó ár használata: ' . $grossAmount);
                     }
+                    
                     $feeItem = new DocumentProductData([
                         'name' => !empty($feeName)
                             ? $feeName
                             : __('Tranzakciós költség', 'billingo'),
                         'quantity' => 1,
-                        'unit_price' => $feeTotal,
+                        'unit_price' => $grossAmount,
                         'unit_price_type' => UnitPriceTypeEnum::GROSS->value,
                         'unit' => $this->getCalculatedDateForItem('unit'),
                         'vat' => $feeVatCode->value,
@@ -664,7 +679,7 @@ class Billingo_Document_Generator
                     }
 
                     $productItems[] = $feeItem;
-                    Billingo_Logger::info('Tranzakciós költség tétel hozzáadva: ' . $feeName . ' (' . $feeTotal . ' ' . $this->order->get_currency() . ')');
+                    Billingo_Logger::info('Tranzakciós költség tétel hozzáadva: ' . $feeName . ' (' . $grossAmount . ' ' . $this->order->get_currency() . ') ÁFA: ' . $feeVatCode->value);
                 }
             }
         }
@@ -709,17 +724,44 @@ class Billingo_Document_Generator
      */
     private function getFeeVatCode($fee): VatEnum
     {
+        Billingo_Logger::info('Fee ÁFA kulcs meghatározása - Fee objektum típusa: ' . get_class($fee));
+        
         // Ha van fee objektum, próbáljuk meg lekérni az ÁFA kulcsot
         if ($fee && method_exists($fee, 'get_taxes')) {
             $taxes = $fee->get_taxes();
+            Billingo_Logger::info('Fee taxes: ' . json_encode($taxes));
+            
             if (!empty($taxes)) {
                 // Az első ÁFA kulcsot használjuk
                 $taxRateId = array_key_first($taxes);
                 if ($taxRateId) {
                     $taxRate = WC_Tax::_get_tax_rate($taxRateId);
+                    Billingo_Logger::info('Tax rate data: ' . json_encode($taxRate));
+                    
                     if ($taxRate && isset($taxRate['tax_rate'])) {
                         $vatEnum = VatEnum::fromNumber($taxRate['tax_rate']);
                         if ($vatEnum) {
+                            Billingo_Logger::info('Fee ÁFA kulcs megtalálva: ' . $vatEnum->value . ' (' . $taxRate['tax_rate'] . '%)');
+                            return $vatEnum;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Próbáljunk meg az ÁFA osztályt lekérni a fee-ből ha van tax_class property
+        if ($fee && method_exists($fee, 'get_tax_class')) {
+            $taxClass = $fee->get_tax_class();
+            Billingo_Logger::info('Fee tax class: ' . $taxClass);
+            
+            if (!empty($taxClass)) {
+                $taxRates = WC_Tax::get_rates_for_tax_class($taxClass);
+                if (!empty($taxRates)) {
+                    $firstRate = reset($taxRates);
+                    if (isset($firstRate->tax_rate)) {
+                        $vatEnum = VatEnum::fromNumber($firstRate->tax_rate);
+                        if ($vatEnum) {
+                            Billingo_Logger::info('Fee ÁFA kulcs tax class alapján: ' . $vatEnum->value . ' (' . $firstRate->tax_rate . '%)');
                             return $vatEnum;
                         }
                     }
@@ -729,6 +771,7 @@ class Billingo_Document_Generator
         
         // Ha nem sikerült meghatározni a tranzakciós díj ÁFA kulcsát, 
         // akkor az alapértelmezett 27%-ot használjuk (magyar standard)
+        Billingo_Logger::info('Fee ÁFA kulcs nem található, alapértelmezett 27% használata');
         return VatEnum::PERCENT_27;
     }
 
@@ -1046,6 +1089,54 @@ class Billingo_Document_Generator
         }else{
             return $item->get_subtotal() / ($item->get_quantity() ?? 1);
         }
+    }
+
+    public function getCurrencyRate($from, $to)
+    {
+        if ($from == $to) {
+            return 1.0;
+        }
+        
+        $params = ['from' => $from, 'to' => $to];
+        Billingo_Logger::info('getCurrencyRate request params: ' . json_encode($params));
+        
+        try {
+            // Try using the query approach
+            $currencyApi = new CurrencyApi();
+            $result = $currencyApi->query()
+                ->where('from', $from)
+                ->where('to', $to)
+                ->getData();
+            
+            Billingo_Logger::info('getCurrencyRate query result type: ' . gettype($result));
+            
+            if ($result && $result->conversation_rate) {
+                Billingo_Logger::info('getCurrencyRate SUCCESS via query - Rate: ' . $result->conversation_rate);
+                return $result->conversation_rate;
+            }
+            
+            // Fallback to direct API call
+            $apiResponse = $currencyApi->getConversationRate($params);
+            $response = $apiResponse->getResponse();
+            
+            Billingo_Logger::info('getCurrencyRate response status: ' . $response->getStatusCode());
+
+            if ($response->getStatusCode() == 200) {
+                $data = $response->getData();
+                Billingo_Logger::info('getCurrencyRate data type: ' . gettype($data));
+                
+                if ($data && $data->conversation_rate) {
+                    $rate = $data->conversation_rate;
+                    Billingo_Logger::info('getCurrencyRate SUCCESS - Rate: ' . $rate);
+                    return $rate;
+                }
+            }
+        } catch (\Exception $e) {
+            Billingo_Logger::error('getCurrencyRate exception: ' . $e->getMessage());
+        }
+
+        Billingo_Logger::warning('getCurrencyRate FAILED - no API rate available and no manual rate set, falling back to 1.0');
+        return 1.0;
     }
 
 }

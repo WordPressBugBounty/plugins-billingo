@@ -1,4 +1,8 @@
 # Changelog
+
+-**4.1.7** - 2025.06.12
+- Add module compatibility
+
 -**4.1.4** - 2025.06.04
 - Add module compatibility
 

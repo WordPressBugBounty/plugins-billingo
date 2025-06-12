@@ -21,11 +21,12 @@ trait Standard_Init
             $status = str_replace('wc-', '', $status);
             add_action('woocommerce_order_status_' . $status, [self::class, 'on_order_state_change'], 10);
         }
-        add_action('woocommerce_thankyou', [self::class, 'should_proforma_generate'], 10, 1);
+        new WC_Order();
+        //add_action('woocommerce_thankyou_order_received_text', [self::class, 'action_woocommerce_email_before_order_table'], 10, 1);
         add_action('wp_ajax_wc_billingo_generate_invoice', [self::class, 'ajax_generateInvoice']);
         add_action('wp_ajax_wc_billingo_storno_invoice', [self::class, 'ajax_stornoInvoice']);
-        add_action('woocommerce_email_before_order_table',
-            [self::class, 'action_woocommerce_email_before_order_table'], 20, 4);
+        add_action('woocommerce_email_before_order_table', [self::class, 'action_woocommerce_email_before_order_table'], 1, 4);
+        //add_action('woocommerce_email_before_order_table', [self::class, 'action_woocommerce_email_before_order_table'], 20, 4);
     }
 
     /**
@@ -34,8 +35,12 @@ trait Standard_Init
      * @param integer $order_id ID of the order that is linked to the document
      */
     public static function on_order_state_change($order_id): void
-    {
+    {   
+        Billingo_Logger::info('on_order_state_change triggered for order ID: ' . $order_id);
         $invoice_generation_data = self::collect_invoice_generation_data($order_id);
+
+        // Generate proforma/draft if needed
+        self::should_proforma_generate($order_id);
 
         if (self::should_document_generate($invoice_generation_data)) {
             Billingo_Logger::startDocumentum();
@@ -49,7 +54,7 @@ trait Standard_Init
         }
 
         if (self::should_cancel_document($invoice_generation_data)) {
-
+            Billingo_Logger::info('should_cancel_document triggered for order ID: - ' . $order_id);
             Billingo_Logger::startDocumentum();
             $billingo_document = $invoice_generation_data->getRepositroy()
                 ->where('type', TypeEnum::INVOICE->value)
@@ -67,8 +72,8 @@ trait Standard_Init
     public static function should_proforma_generate($order_id): void
     {
         $invoice_generation_data = self::collect_invoice_generation_data($order_id);
-
-        if (get_option('wc_billingo_payment_request_auto') !== 'no') {
+        $order = wc_get_order($order_id);
+        if ((get_option('wc_billingo_payment_request_auto') !== 'no') && $order->get_status() === 'processing') {
 
             Billingo_Logger::startDocumentum();
 
@@ -241,6 +246,8 @@ trait Standard_Init
 
             return;
         }
+        
+        Billingo_Logger::info('action_woocommerce_email_before_order_table triggered for email ID: ' . $email->id);
 
         $repository = new Billingo_Repositroy();
 
@@ -257,6 +264,7 @@ trait Standard_Init
                 'customer_completed_renewal_order',
                 'customer_completed_switch_order'
             ])) {
+                Billingo_Logger::info('invoice email through woocommerce triggered');
             $pdf_link = $repository
                 ->where('order_id', $order->get_id())
                 ->where('type', TypeEnum::INVOICE->value)
@@ -269,16 +277,44 @@ trait Standard_Init
                 __('Számlája elkészült, melyet az alábbi linken tud megtekinteni.', 'billingo'));
             $btn_text = get_option('wc_billingo_email_woo_btn', __('Számla megtekintése', 'billingo'));
         }
-
-        // storno
+        // storno TODO: refactor this storno email attachment and generate storno if storno not exists (this whole if)
+        //the solution is for problem: storno_document didnt exists in db at the time on the storno email sending
+        //and the other problem in this part of the code the order status is 'processing', and the Invoice_Generation_Container dosent return with the cancellaction, so we need to generate it manually
         if (in_array(get_option('wc_billingo_storno_email'), ['attach', 'both'])
-            && $email_id == 'customer_refunded_order') {
-            $pdf_link = $repository
-                ->where('order_id', $order->get_id())
-                ->where('type', TypeEnum::CANCELLATION->value)
-                ->first();
+            && $email_id == 'customer_refunded_order'
+            && get_option('wc_billingo_auto_storno') !== 'no') {
+                Billingo_Logger::info('storno email through woocommerce triggered //storno email -before order table');
+                
+                // Check if storno document already exists
+                $existing_storno = $repository
+                    ->where('order_id', $order->get_id())
+                    ->where('type', TypeEnum::CANCELLATION->value)
+                    ->first();
+                
+                // If storno doesn't exist yet, generate it immediately
+                // For refunded order emails, we force generate storno regardless of order status
+                if (!$existing_storno) {
+                    Billingo_Logger::info('Generating storno document for customer_refunded_order email, order: ' . $order->get_id());
+                    $invoice_generation_data = self::collect_invoice_generation_data($order->get_id());
+                    
+                    Billingo_Logger::startDocumentum();
+                    $billingo_document = $invoice_generation_data->getRepositroy()
+                        ->where('type', TypeEnum::INVOICE->value)
+                        ->where('order_id', $order->get_id())
+                        ->first();
 
-            $pdf_link = $pdf_link ? $pdf_link['link'] : null;
+                    if (!is_null($billingo_document)) {
+                        $invoice_generation_data->getController()->cancelDocument($billingo_document['billingo_id']);
+                    }
+                    Billingo_Logger::endDocumentum();
+                }
+                
+                $pdf_link = $repository
+                    ->where('order_id', $order->get_id())
+                    ->where('type', TypeEnum::CANCELLATION->value)
+                    ->first();
+
+                $pdf_link = $pdf_link ? $pdf_link['link'] : null;
 
             $text = get_option('wc_billingo_storno_email_woo_text',
                 __('Storno számlája elkészült, melyet az alábbi linken tud megtekinteni.', 'billingo'));
@@ -288,6 +324,7 @@ trait Standard_Init
         // proforma
         if (in_array(get_option('wc_billingo_proforma_email'), ['attach', 'both'])
             && in_array($email_id, ['customer_processing_order', 'customer_on_hold_order'])) {
+                Billingo_Logger::info('proforma email through woocommerce triggered');
             $pdf_link = $repository
                 ->where('order_id', $order->get_id())
                 ->where('type', TypeEnum::PROFORMA->value)
