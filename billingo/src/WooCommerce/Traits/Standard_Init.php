@@ -9,6 +9,7 @@ use App\Billingo\WooCommerce\Repositories\Billingo_Repositroy;
 use App\Billingo\WooCommerce\Service\Billingo_Document_Generator;
 use App\Billingo\WooCommerce\Service\Billingo_Logger;
 use App\Billingo\WooCommerce\Service\Invoice_Generation_Container;
+use App\Billingo\WooCommerce\Service\Billingo_Checkout_Fields;
 use Symfony\Component\HttpFoundation\Response;
 use WC_Order;
 
@@ -27,6 +28,9 @@ trait Standard_Init
         add_action('wp_ajax_wc_billingo_storno_invoice', [self::class, 'ajax_stornoInvoice']);
         add_action('woocommerce_email_before_order_table', [self::class, 'action_woocommerce_email_before_order_table'], 1, 4);
         //add_action('woocommerce_email_before_order_table', [self::class, 'action_woocommerce_email_before_order_table'], 20, 4);
+        
+        // Initialize product price saving hooks (always needed for orders)
+        Billingo_Checkout_Fields::init_product_price_hooks();
     }
 
     /**
@@ -215,12 +219,14 @@ trait Standard_Init
                     __('A számla száma:', 'billingo') . $created->invoice_number,
                 ];
 
-                $link = (new Billingo_Repositroy())->where('billingo_id', $created->id)->first()['link'];
-                $response['link'] = '<p><a href="'
-                    . esc_url($link)
-                    . '" id="wc_billingo_download" class="button button-primary" target="_blank">'
-                    . __('Számla megtekintése', 'billingo')
-                    . '</a></p>';
+                $document = (new Billingo_Repositroy())->where('billingo_id', $created->id)->first();
+                if ($document && isset($document['link'])) {
+                    $response['link'] = '<p><a href="'
+                        . esc_url($document['link'])
+                        . '" id="wc_billingo_download" class="button button-primary" target="_blank">'
+                        . __('Számla megtekintése', 'billingo')
+                        . '</a></p>';
+                }
             }
         }
 

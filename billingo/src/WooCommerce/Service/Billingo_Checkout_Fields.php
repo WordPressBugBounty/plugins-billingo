@@ -5,71 +5,61 @@ use App\Billingo\WooCommerce\Service\Billingo_Logger;
 
 class Billingo_Checkout_Fields
 {
-    public static function init(): void
+    private static bool $vat_fields_initialized = false;
+    private static bool $price_hooks_initialized = false;
+    
+    /**
+     * Inicializálja a termék ár mentés hook-okat (mindig szükséges)
+     */
+    public static function init_product_price_hooks(): void
     {
-        // Kezdő logolás
-        if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
-           Billingo_Logger::info('Billingo_Checkout_Fields::init() called.');
-        } else {
-            error_log('Billingo_Checkout_Fields::init() called.');
+        if (self::$price_hooks_initialized) {
+            return; // Csendben kihagyjuk, ha már inicializálva van
         }
+        self::$price_hooks_initialized = true;
+        
+        // Termék árak mentése hook-ok
+        add_action('woocommerce_thankyou', [self::class, 'save_product_original_prices'], 5, 1);
 
+    }
+    
+    /**
+     * Inicializálja a VAT mező hook-okat (csak checkout/thankyou oldalon)
+     */
+    public static function init_vat_fields(): void
+    {
+        if (self::$vat_fields_initialized) {
+            return;
+        }
+        self::$vat_fields_initialized = true;
+        
+        if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
+           Billingo_Logger::info('VAT fields initialization started');
+        }
+        
         // HuCommerce plugin ellenőrzése
         $is_hucommerce_active = self::is_hucommerce_active();
-        if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
-            Billingo_Logger::info('Is HuCommerce active? ' . ($is_hucommerce_active ? 'Yes' : 'No'));
-        } else {
-            error_log('Is HuCommerce active? ' . ($is_hucommerce_active ? 'Yes' : 'No'));
-        }
-
         if ($is_hucommerce_active) {
             if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
-                Billingo_Logger::info('HuCommerce is active, returning.');
-            } else {
-                error_log('HuCommerce is active, returning.');
+                Billingo_Logger::info('HuCommerce is active, skipping VAT fields');
             }
-            return; // Ha HuCommerce aktív, ne adjuk hozzá a mezőt
+            return;
         }
 
         // Csak akkor adjuk hozzá a mezőt, ha engedélyezve van
         $vat_form_option = get_option('wc_billingo_vat_number_form');
         $is_vat_form_enabled = wcFlexibleIsTrue($vat_form_option);
 
-        if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
-            Billingo_Logger::info('wc_billingo_vat_number_form option value: ' . var_export($vat_form_option, true));
-            Billingo_Logger::info('Is VAT form enabled (wcFlexibleIsTrue)? ' . ($is_vat_form_enabled ? 'Yes' : 'No'));
-        } else {
-            error_log('wc_billingo_vat_number_form option value: ' . var_export($vat_form_option, true));
-            error_log('Is VAT form enabled (wcFlexibleIsTrue)? ' . ($is_vat_form_enabled ? 'Yes' : 'No'));
-        }
-
         if ($is_vat_form_enabled) {
-            if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
-                Billingo_Logger::info('Adding VAT number field hooks.');
-            } else {
-                error_log('Adding VAT number field hooks.');
-            }
             add_filter('woocommerce_checkout_fields', [self::class, 'add_vat_number_field']);
             add_action('woocommerce_checkout_process', [self::class, 'validate_vat_number_field']);
             add_action('woocommerce_checkout_update_order_meta', [self::class, 'save_vat_number_field']);
             add_action('woocommerce_admin_order_data_after_billing_address', [self::class, 'display_vat_number_in_admin']);
             add_action('woocommerce_order_details_after_customer_details', [self::class, 'display_vat_number_in_order_details']);
-        } else {
+            
             if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
-                Billingo_Logger::info('VAT number field hooks NOT added because the option is disabled.');
-            } else {
-                error_log('VAT number field hooks NOT added because the option is disabled.');
+                Billingo_Logger::info('VAT number field hooks added');
             }
-        }
-
-        // Webhook feliratkozás a rendelés leadására - termék teljes árak mentéséhez
-        add_action('woocommerce_checkout_order_processed', [self::class, 'save_product_regular_prices'], 10, 1);
-        add_action('woocommerce_thankyou', [self::class, 'save_product_regular_prices'], 10, 1);
-        
-        if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
-            Billingo_Logger::info('Product regular price hooks added.');
-        } else {
-            error_log('Product regular price hooks added.');
         }
     }
 
@@ -116,7 +106,7 @@ class Billingo_Checkout_Fields
         if (isset($_POST['billing_vat_number']) && !empty($_POST['billing_vat_number'])) {
             $vat_number = sanitize_text_field($_POST['billing_vat_number']);
             
-            // Magyar adószám formátum ellenőrzése (opcionális)
+            // Magyar adószám formátum ellenőrzése
             if (!empty($vat_number) && !self::is_valid_hungarian_vat_number($vat_number)) {
                 // Nem blokkoljuk a rendelést, csak figyelmeztetést adunk
                 // wc_add_notice(__('Az adószám formátuma nem megfelelő.', 'billingo'), 'notice');
@@ -144,7 +134,7 @@ class Billingo_Checkout_Fields
         $vat_number = self::get_vat_number_from_order($order);
         
         if (!empty($vat_number)) {
-            echo '<p><strong>' . __('Adószám:', 'billingo') . '</strong> ' . esc_html($vat_number) . '</p>';
+            //echo '<p><strong>' . __('Adószám:', 'billingo') . '</strong> ' . esc_html($vat_number) . '</p>';
         }
     }
 
@@ -156,7 +146,7 @@ class Billingo_Checkout_Fields
         $vat_number = self::get_vat_number_from_order($order);
         
         if (!empty($vat_number)) {
-            echo '<tr><th>' . __('Adószám:', 'billingo') . '</th><td>' . esc_html($vat_number) . '</td></tr>';
+            //echo '<tr><th>' . __('Adószám:', 'billingo') . '</th><td>' . esc_html($vat_number) . '</td></tr>';
         }
     }
 
@@ -212,59 +202,50 @@ class Billingo_Checkout_Fields
     /**
      * Mentés a termék regisztrális árának a rendelés meta adataiba
      */
-    public static function save_product_regular_prices($order_id): void
+    public static function save_product_original_prices($order_id, $from_status = null, $to_status = null, $order_object = null): void
     {
-        if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
-            Billingo_Logger::info('save_product_regular_prices called for order ID: ' . $order_id);
-        } else {
-            error_log('save_product_regular_prices called for order ID: ' . $order_id);
+
+        Billingo_Logger::info('save_product_original_prices');
+
+        // Ellenőrizzük, hogy már mentettük-e ezt a rendelést
+        $already_saved = get_post_meta($order_id, '_billingo_original_prices_saved', true);
+        //ha már el van mentve akkor nem mentünk rá újra, nehogy árban eltérés legyen a termék árának változása miatt
+        if ($already_saved) {
+            return; 
         }
+
+        Billingo_Logger::info('save_product_original_prices called for order ID: ' . $order_id);
 
         $order = wc_get_order($order_id);
         if (!$order) {
-            if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
-                Billingo_Logger::error('Order not found for ID: ' . $order_id);
-            } else {
-                error_log('Order not found for ID: ' . $order_id);
-            }
+            Billingo_Logger::info('Order not found for ID: ' . $order_id);
             return;
         }
 
         $items = $order->get_items();
+
         foreach ($items as $item_id => $item) {
             $product = $item->get_product();
+
             if ($product && method_exists($product, 'get_regular_price')) {
                 $regular_price = $product->get_regular_price();
-                
+                $sale_price = $item->get_subtotal();
+
                 if (!empty($regular_price)) {
-                    // Az order item meta-ba mentjük, nem a termék meta-ba
-                    wc_add_order_item_meta($item_id, 'wc_billingo_product_full_price_without_sale', $regular_price);
-                    
-                    if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
-                        Billingo_Logger::info("Regular price saved for item ID: {$item_id}, Product ID: {$product->get_id()}, Regular Price: {$regular_price}");
-                    } else {
-                        error_log("Regular price saved for item ID: {$item_id}, Product ID: {$product->get_id()}, Regular Price: {$regular_price}");
-                    }
+                    // Metaadat mentése a rendelési tételhez
+                    wc_add_order_item_meta($item_id, '_wc_billingo_product_full_price_without_sale', $regular_price);
+                    wc_add_order_item_meta($item_id, '_wc_billingo_product_full_price_with_sale', $sale_price);
+
+                    Billingo_Logger::info("Original prices saved for order {$order_id}, item {$item_id}: Regular={$regular_price}, Sale={$sale_price}");
                 } else {
-                    if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
-                        Billingo_Logger::warning("Empty regular price for Product ID: {$product->get_id()}");
-                    } else {
-                        error_log("Empty regular price for Product ID: {$product->get_id()}");
-                    }
+                    Billingo_Logger::info("Empty regular price for Product ID: {$product->get_id()}");
                 }
             } else {
-                if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
-                    Billingo_Logger::error("Product not found or get_regular_price method missing for item ID: {$item_id}");
-                } else {
-                    error_log("Product not found or get_regular_price method missing for item ID: {$item_id}");
-                }
+                Billingo_Logger::info("Product not found or get_regular_price method missing for item ID: {$item_id}");
             }
         }
-        
-        if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
-            Billingo_Logger::info('save_product_regular_prices completed for order ID: ' . $order_id);
-        } else {
-            error_log('save_product_regular_prices completed for order ID: ' . $order_id);
-        }
+
+        // Jelöljük, hogy már mentettük ezt a rendelést
+        update_post_meta($order_id, '_billingo_original_prices_saved', 1);
     }
 } 
