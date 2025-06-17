@@ -77,14 +77,27 @@ trait Standard_Init
     {
         $invoice_generation_data = self::collect_invoice_generation_data($order_id);
         $order = wc_get_order($order_id);
-        if ((get_option('wc_billingo_payment_request_auto') !== 'no') && $order->get_status() === 'processing') {
+        // Check if payment method specific proforma is enabled
+        $payment_method_proforma_enabled = false;
+        if ($order->get_status() === 'processing' && $order->get_payment_method() !== null) {
+            $payment_method = $order->get_payment_method();
+            Billingo_Logger::info('Checking payment method for proforma: ' . $payment_method);
+            
+            // The proforma setting is stored separately with 'wc_billingo_proforma_' prefix
+            $payment_method_proforma_setting = get_option('wc_billingo_proforma_' . $payment_method);
+            $payment_method_proforma_enabled = wcFlexibleIsTrue($payment_method_proforma_setting);
+        }
+
+        if (((get_option('wc_billingo_payment_request_auto') !== 'no') && $order->get_status() === 'processing') || $payment_method_proforma_enabled) {
 
             Billingo_Logger::startDocumentum();
 
             $type = get_option('wc_billingo_payment_request_auto') === TypeEnum::PROFORMA->value
                 ? 'getProforma'
                 : 'getDraft';
-
+            if($payment_method_proforma_enabled) {
+                $type = 'getProforma';
+            }
             $document = $invoice_generation_data->getDocumentGenerator()->$type();
 
             if (!is_null($document)) {

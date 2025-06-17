@@ -435,7 +435,7 @@ class WC_Billingo_Admin_Controller
         }
         // Debugging infos
         $debug_info = [
-            'Plugin Version' => defined('BILLINGO_VERSION') ? BILLINGO_VERSION : 'Unknown',
+            'Plugin Version' => $this->get_plugin_version(),
             'WordPress Version' => $wp_version,
             'PHP Version' => phpversion(),
             'WooCommerce Version' => defined('WC_VERSION') ? WC_VERSION : 'Not active',
@@ -472,6 +472,27 @@ class WC_Billingo_Admin_Controller
         ]);
         
         echo $html;
+    }
+
+    /**
+     * Get plugin version from plugin header
+     *
+     * @return string
+     */
+    private function get_plugin_version(): string
+    {
+        if (!function_exists('get_plugin_data')) {
+            require_once(ABSPATH . 'wp-admin/includes/plugin.php');
+        }
+        
+        $plugin_file = BILLINGO__PLUGIN_DIR . 'index.php';
+        
+        if (file_exists($plugin_file)) {
+            $plugin_data = get_plugin_data($plugin_file);
+            return $plugin_data['Version'] ?? 'Unknown';
+        }
+        
+        return 'Unknown';
     }
 
     /**
