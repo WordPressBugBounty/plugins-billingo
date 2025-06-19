@@ -1,11 +1,4 @@
 # Changelog
-
--**4.1.9** - 2025.06.17
-- Free gift product bug
-
--**4.1.7** - 2025.06.12
-- Add module compatibility
-
 -**4.1.4** - 2025.06.04
 - Add module compatibility
 

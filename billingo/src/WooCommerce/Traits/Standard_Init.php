@@ -29,6 +29,11 @@ trait Standard_Init
         add_action('woocommerce_email_before_order_table', [self::class, 'action_woocommerce_email_before_order_table'], 1, 4);
         //add_action('woocommerce_email_before_order_table', [self::class, 'action_woocommerce_email_before_order_table'], 20, 4);
         
+        // 1 thankyou-ra should-proforma generate by payment method státusztól függetlenül
+        add_action('woocommerce_thankyou', [self::class, 'should_proforma_generate'], 10, 1);
+        // 2 automata díjbekérőt csak akkor generáljunk, ha az automata számla generálás státusz
+
+
         // Initialize product price saving hooks (always needed for orders)
         Billingo_Checkout_Fields::init_product_price_hooks();
     }
@@ -43,8 +48,8 @@ trait Standard_Init
         Billingo_Logger::info('on_order_state_change triggered for order ID: ' . $order_id);
         $invoice_generation_data = self::collect_invoice_generation_data($order_id);
 
-        // Generate proforma/draft if needed
-        self::should_proforma_generate($order_id);
+        // Generate proforma/draft if needed, removed because of the thankyou hook
+        //self::should_proforma_generate($order_id);
 
         if (self::should_document_generate($invoice_generation_data)) {
             Billingo_Logger::startDocumentum();
@@ -73,38 +78,59 @@ trait Standard_Init
         }
     }
 
+    /**
+     * Megnézzük, hogy be van -e kapcsolva a díjbekérő vagy piszkozat generálás, ha igen akkor a rendeléshez tartozó fizetési módnál megnézzük, hogy be van -e kapcsolva a díjbekérő generálása. Ha mindkét opció be van kapcsolva, akkor a díjbekérőt generál.
+     *
+     * @param integer $order_id ID of the order that is linked to the document
+     */
     public static function should_proforma_generate($order_id): void
     {
         $invoice_generation_data = self::collect_invoice_generation_data($order_id);
         $order = wc_get_order($order_id);
-        // Check if payment method specific proforma is enabled
+
         $payment_method_proforma_enabled = false;
-        if ($order->get_status() === 'processing' && $order->get_payment_method() !== null) {
+
+        //megnézzük, hogy szeretne-e egyáltalán generálni díjbekérőt a felhasználó
+        if (get_option('wc_billingo_payment_request_auto') !== 'no') {
             $payment_method = $order->get_payment_method();
             Billingo_Logger::info('Checking payment method for proforma: ' . $payment_method);
             
-            // The proforma setting is stored separately with 'wc_billingo_proforma_' prefix
+            // ellenőrizzük, hogy a fizetési módnál be van -e kapcsolva a díjbekérő generálása
             $payment_method_proforma_setting = get_option('wc_billingo_proforma_' . $payment_method);
             $payment_method_proforma_enabled = wcFlexibleIsTrue($payment_method_proforma_setting);
         }
-
-        if (((get_option('wc_billingo_payment_request_auto') !== 'no') && $order->get_status() === 'processing') || $payment_method_proforma_enabled) {
-
-            Billingo_Logger::startDocumentum();
-
+        
+        //ha be van kapcsolva a díjbekérő generálása és a fizetési módnál be van kapcsolva a díjbekérő generálása akkor megnézzük, hogy már generálva van -e a díjbekérő vagy piszkozat,
+        //ez azért fontos, mert ha már van generálva, akkor nem generáljuk le újra, hogy ne legyen több díjbekérő a rendeléshez, mert a woocommerce_thankyou hook meghívódhat az oldal frissítésekor is
+        if ($payment_method_proforma_enabled) {
             $type = get_option('wc_billingo_payment_request_auto') === TypeEnum::PROFORMA->value
                 ? 'getProforma'
                 : 'getDraft';
-            if($payment_method_proforma_enabled) {
-                $type = 'getProforma';
-            }
-            $document = $invoice_generation_data->getDocumentGenerator()->$type();
+            $billingo_document = (new Billingo_Repositroy())
+                ->where('order_id', $order->get_id())
+                ->where('type', get_option('wc_billingo_payment_request_auto') === TypeEnum::PROFORMA->value
+                ? TypeEnum::PROFORMA->value
+                : TypeEnum::DRAFT->value)
+                ->first();
 
-            if (!is_null($document)) {
-                $invoice_generation_data->getController()->createDocument($document);
+            //ha nincs még generálva a díjbekérő vagy piszkozat, akkor generáljuk
+            if (!$billingo_document) {
+                Billingo_Logger::info( $type . ' generating for payment method: ' . $payment_method);
+
+                Billingo_Logger::startDocumentum();
+                $document = $invoice_generation_data->getDocumentGenerator()->$type();
+    
+                if (!is_null($document)) {
+                    $invoice_generation_data->getController()->createDocument($document);
+                }
+    
+                Billingo_Logger::endDocumentum();
+            } else {
+                //ha már generálva van a díjbekérő vagy piszkozat, akkor nem generáljuk újra
+                Billingo_Logger::info( $type . ' is already generated for payment method: ' . $payment_method);
             }
 
-            Billingo_Logger::endDocumentum();
+           
         }
     }
 
@@ -350,6 +376,18 @@ trait Standard_Init
                 ->first();
 
             $pdf_link = $pdf_link ? $pdf_link['link'] : null;
+
+            //if the proforma is not generated, we generate it with the should_proforma_generate function
+            if (!$pdf_link) {
+                self::should_proforma_generate($order->get_id());
+                //sleep for 1 second waiting for the proforma to be generated, because this function is a void function and it does not return the document
+                sleep(1);
+                $pdf_link = $repository
+                    ->where('order_id', $order->get_id())
+                    ->where('type', TypeEnum::PROFORMA->value)
+                    ->first();
+                $pdf_link = $pdf_link ? $pdf_link['link'] : null;
+            }
 
             $text = get_option('wc_billingo_proforma_email_woo_text',
                 __('Díjbekérője elkészült, melyet az alábbi linken tud megtekinteni.', 'billingo'));

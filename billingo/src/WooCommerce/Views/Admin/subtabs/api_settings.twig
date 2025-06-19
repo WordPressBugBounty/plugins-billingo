@@ -498,6 +498,9 @@
                                         value="{{ api_key|esc_attr }}"
                                     />
                                     <p class="billingo-field-description-italic">{{ 'Az API kulcs generálását a Billingo admin felületéről éred el.'|esc_html_translate }}</p>
+                                    <p style="color: red; font-weight: 700;">{{ 'Az API-kulcs megadása önmagában még nem elegendő. '|esc_html_translate }}</p>
+                                    <p style="color: red; font-weight: 700;">{{ 'A plugin frissítése után minden beállítás újra szükségessé válik, ezek nélkül a számlázás nem indul el úgy, ahogy számodra megfelelő lenne.'|esc_html_translate }}
+                                    <p style="color: red; font-weight: 700;">{{ 'Kérjük, menj végig a teljes beállítási folyamaton a plugin oldalán.'|esc_html_translate }}</p>
                                     <a href="{{esc_url('https://support.billingo.hu/content/951320702#mi-az-api-es-hol-erem-el-ezeket-a-kulcsokat')}}" target="_blank"><p class="billingo-field-description-italic">{{ 'Segítség az API kulcs létrehozásában.'|esc_html_translate }}</p></a>
                                 </td>
                             </tr>
@@ -537,11 +540,6 @@
                                     
                                     {{ billingo_api_connection_message|esc_html_translate }}</span>
                                 </td>
-                                {% if billingo_api_connection_status == 'error' %}
-                                <td class="billingo-api-connection-status-container" style="padding-top: 0px !important;">
-                                    <p class="billingo-field-description-italic" >{{'Kérjük ellenőrizd, hogy rendelkezel-e aktív Billingo előfizetéssel, mivel ez is okozhatja a kapcsolat sikertelenségét.'|esc_html_translate}}</p>
-                                </td>
-                                {% endif %}
                             </tr>
                             <tr valign="top">
                                 <th scope="row" class="billingo-api-settings-field-name-container">

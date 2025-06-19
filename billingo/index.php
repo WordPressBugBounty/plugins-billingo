@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: Billingo Official for WooCommerce
- * Version: 4.1.9
+ * Version: 4.2.0
  * Requires at least: 6.7
  * Requires PHP: 8.1
  * License: GPL v2 or later
- * Description: Billingo online számlázó összeköttetés WooCommerce-hez
+ * Description: Fontos tudnivaló a frissítés előtt: A 4.0-s verzió új működésre áll át – a meglévő beállítások nem kerülnek át automatikusan. Frissítés után az összes pluginbeállítás újra konfigurálást igényel. Ha frissítés történik, a számlázás csak akkor folytatható, ha a beállításokat újra végigviszed. Érdemes előtte egy képernyőfotót készíteni a jelenlegi beállításokról.
  * Author: Billingo Zrt. <hello@billingo.hu>
  * Author URI: https://billingo.hu
  * Text Domain: billingo

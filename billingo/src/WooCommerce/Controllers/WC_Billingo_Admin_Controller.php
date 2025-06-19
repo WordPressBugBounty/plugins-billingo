@@ -300,7 +300,7 @@ class WC_Billingo_Admin_Controller
             'block_child_orders' => get_option('wc_billingo_block_child_orders', '0'),
             'vat_number_form' => get_option('wc_billingo_vat_number_form', '0'),
             'vat_number_form_checkbox_custom' => get_option('wc_billingo_vat_number_form_checkbox_custom', '0'),
-
+            'discount_is_unique_item' => get_option('wc_billingo_discount_is_unique_item', '0'),
             // Select options
             'auto_storno' => get_option('wc_billingo_auto_storno', 'no'),
             'payment_request_auto' => get_option('wc_billingo_payment_request_auto', 'no'),
@@ -416,7 +416,8 @@ class WC_Billingo_Admin_Controller
 
         $html = view('Admin.subtabs.payment_settings', [
             'payment_methods' => $payment_methods,
-            'billingo_payment_methods' => $billingo_payment_methods
+            'billingo_payment_methods' => $billingo_payment_methods,
+            'proforma_auto' => get_option('wc_billingo_payment_request_auto', 'no')
         ]);
         
         echo $html;
@@ -713,6 +714,7 @@ class WC_Billingo_Admin_Controller
             'wc_billingo_block_child_orders',
             'wc_billingo_vat_number_form',
             'wc_billingo_vat_number_form_checkbox_custom',
+            'wc_billingo_discount_is_unique_item',
         ];
         
         foreach ($checkbox_fields as $field) {

@@ -988,6 +988,21 @@
                                     </fieldset>
                                 </td>
                             </tr>
+
+                            <tr valign="top">
+                                <th scope="row" class="billingo-invoice-settings-field-container">
+                                    <label class="billingo-field-name-right-column" for="wc_billingo_discount_is_unique_item">{{ 'Kedvezmény külön tételként szerepeljen a számlán'|esc_html_translate }}</label>
+                                </th>
+                                <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
+                                    <fieldset>
+                                        <legend class="screen-reader-text"><span>{{ 'Kedvezmény külön tételként szerepeljen a számlán'|esc_html_translate }}</span></legend>
+                                        <label for="wc_billingo_discount_is_unique_item" class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="wc_billingo_discount_is_unique_item" name="wc_billingo_discount_is_unique_item" value="1" class="sr-only peer" {% if discount_is_unique_item=='1' %}checked="checked"{% endif %}>
+                                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        </label>
+                                    </fieldset>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>

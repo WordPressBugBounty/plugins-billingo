@@ -4,7 +4,28 @@
         padding: 20px;
         background: #FFFFFF;
     }
+    .billingo-field-description-italic {
+        width: 415px;
+        height: 16px;
+        margin-top: 5px !important;
 
+        font-family: 'Arial';
+        font-style: italic;
+        font-weight: 400;
+        font-size: 14px;
+        line-height: 16px;
+        /* identical to box height */
+
+        /* mg3/mg3 text light */
+        color: #8B9FB0;
+        text-decoration: none;
+
+        /* Inside auto layout */
+        flex: none;
+        order: 0;
+        flex-grow: 0;
+
+    }
     .billingo-payment-methods-table {
         background-color: #f1f1f2 !important;
         border-radius: 4px;
@@ -197,7 +218,10 @@
                         <th class="billingo-payment-methods-table-header">{{ 'Fizetési határidő'|esc_html_translate }}</th>
                         <th class="billingo-payment-methods-table-header">{{ 'Fizetettnek jelölés (díjbekérő esetén)'|esc_html_translate }}</th>
                         <th class="billingo-payment-methods-table-header">{{ 'Fizetettnek jelölés (Éles számla esetén)'|esc_html_translate }}</th>
-                        <th class="billingo-payment-methods-table-header">{{ 'Díjbekérő kiállítása'|esc_html_translate }}</th>
+                        <th class="billingo-payment-methods-table-header">{{ 'Díjbekérő kiállítása'|esc_html_translate }} 
+                            {% if proforma_auto == 'no' %}
+                                <span class="billingo-field-description-italic">(A "Díjbekérő létrehozása" opciót be kell kapcsolni hozzá a Számla beállításokban)</span>
+                            {% endif %}</th>
                     </tr>
                 </thead>
                 <tbody class>

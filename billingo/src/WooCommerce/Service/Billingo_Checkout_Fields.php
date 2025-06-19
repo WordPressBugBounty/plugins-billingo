@@ -229,8 +229,8 @@ class Billingo_Checkout_Fields
 
             if ($product && method_exists($product, 'get_regular_price')) {
                 $regular_price = $product->get_regular_price();
-                $sale_price = $item->get_subtotal();
 
+                $sale_price = $item->get_subtotal()/ $item->get_quantity();
                 if (!empty($regular_price)) {
                     // Metaadat mentése a rendelési tételhez
                     wc_add_order_item_meta($item_id, '_wc_billingo_product_full_price_without_sale', $regular_price);
