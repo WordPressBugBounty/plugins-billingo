@@ -1,4 +1,8 @@
 # Changelog
+-**4.2.1** - 2025.07.02
+- Fees problem
+- Order comment
+
 -**4.1.4** - 2025.06.04
 - Add module compatibility
 
