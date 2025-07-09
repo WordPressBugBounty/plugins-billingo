@@ -255,7 +255,7 @@ trait Standard_Init
             } else {
                 $response['messages'] = [
                     __('Sikeres generálás', 'billingo'),
-                    __('A számla száma:', 'billingo') . $created->invoice_number,
+                    __('A bizonylat száma:', 'billingo') . $created->invoice_number,
                 ];
 
                 $document = (new Billingo_Repositroy())->where('billingo_id', $created->id)->first();
@@ -263,7 +263,7 @@ trait Standard_Init
                     $response['link'] = '<p><a href="'
                         . esc_url($document['link'])
                         . '" id="wc_billingo_download" class="button button-primary" target="_blank">'
-                        . __('Számla megtekintése', 'billingo')
+                        . __('Bizonylat megtekintése', 'billingo')
                         . '</a></p>';
                 }
             }
@@ -320,7 +320,7 @@ trait Standard_Init
             $text = get_option(
                 'wc_billingo_email_woo_text',
                 __('Számlája elkészült, melyet az alábbi linken tud megtekinteni.', 'billingo'));
-            $btn_text = get_option('wc_billingo_email_woo_btn', __('Számla megtekintése', 'billingo'));
+            $btn_text = get_option('wc_billingo_email_woo_btn', __('Bizonylat megtekintése', 'billingo'));
         }
         // storno TODO: refactor this storno email attachment and generate storno if storno not exists (this whole if)
         //the solution is for problem: storno_document didnt exists in db at the time on the storno email sending

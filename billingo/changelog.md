@@ -1,7 +1,16 @@
 # Changelog
+
+-**4.2.2** - 2025.07.08
+- extra fees update (if vat is not set in woocommerce) 
+- Dataerasecode fix
+- Only add the vendor ID to the invoice.
+
 -**4.2.1** - 2025.07.02
 - Fees problem
 - Order comment
+
+-**4.2.0** - 2025.06.20
+- item discount selectable.
 
 -**4.1.4** - 2025.06.04
 - Add module compatibility

@@ -90,7 +90,9 @@ class Billingo_Document_Generator
         $this->collectDocumentData();
 
         $this->documentData['type'] = $type->value;
-
+        if('$type->value' != 'inovice'){
+            unset($this->documentData['vendor_id']);
+        }
         $document = new DocumentInsert($this->documentData);
 
         if ($document->hasError()) {
@@ -144,7 +146,7 @@ class Billingo_Document_Generator
 
         Billingo_Logger::info('Bank account ID: ' . ($bankAccountId ?: 'not set (using default)') . ' Currency: ' . $this->order->get_currency() );
         $document = [
-            'vendor_id'=> "$this->order->get_id()",
+            'vendor_id'=> (string)$this->order->get_id(),
             'partner_id' => $this->findOrCreatePartner($this->getPartnerName()),
             'block_id' => (int)get_option('wc_billingo_invoice_block'),
             'bank_account_id' => $bankAccountId,
@@ -1031,7 +1033,7 @@ class Billingo_Document_Generator
                     Billingo_Logger::info('Fee ÁFA kulcs: ' . $feeVatCode->value);
 
                     // A bruttó összeg kiszámítása
-                    $grossAmount = $feeTotal * (1 + ($feeVatCode->value ?? '0%') / 100);
+                    $grossAmount = $feeTotal * (1 + ($feeVatCode->value ?? 0) / 100);
 
 
                     // Ha WooCommerce nettó árazást használ és van ÁFA, akkor hozzáadjuk az ÁFA-t
@@ -1153,7 +1155,7 @@ class Billingo_Document_Generator
         // Ha nem sikerült meghatározni a tranzakciós díj ÁFA kulcsát,
         // akkor az alapértelmezett 27%-ot használjuk (magyar standard)
         Billingo_Logger::info('Fee ÁFA kulcs nem található, alapértelmezett 27% használata');
-        return VatEnum::PERCENT_27;
+        return VatEnum::PERCENT_0;
     }
 
     /**
@@ -1334,15 +1336,15 @@ class Billingo_Document_Generator
 
     private function hasEraseCode(WC_Order_Item $item): bool
     {
-        $fieldName = get_option('wc_billingo_is_generate_erase_code', false);
-        if (!$fieldName) {
-
+        $optionKey = get_option('wc_billingo_is_generate_erase_code', false);
+        if (empty($optionKey)) {
             return false;
         }
 
-        $productId = $item->get_product_id();
+        $fieldName = 'pa_' . $optionKey;
+        $product   = wc_get_product($item->get_product_id());
 
-        return get_post_meta($productId, '_product_attributes',true)[$fieldName]['value'] ?? false;
+        return $product && $product->get_attribute($fieldName) === '1';
     }
 
     /**

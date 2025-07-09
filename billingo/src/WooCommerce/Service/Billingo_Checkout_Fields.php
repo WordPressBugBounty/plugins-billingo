@@ -7,7 +7,7 @@ class Billingo_Checkout_Fields
 {
     private static bool $vat_fields_initialized = false;
     private static bool $price_hooks_initialized = false;
-    
+
     /**
      * Inicializálja a termék ár mentés hook-okat (mindig szükséges)
      */
@@ -17,12 +17,12 @@ class Billingo_Checkout_Fields
             return; // Csendben kihagyjuk, ha már inicializálva van
         }
         self::$price_hooks_initialized = true;
-        
+
         // Termék árak mentése hook-ok
         add_action('woocommerce_thankyou', [self::class, 'save_product_original_prices'], 5, 1);
 
     }
-    
+
     /**
      * Inicializálja a VAT mező hook-okat (csak checkout/thankyou oldalon)
      */
@@ -32,11 +32,11 @@ class Billingo_Checkout_Fields
             return;
         }
         self::$vat_fields_initialized = true;
-        
+
         if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
-           Billingo_Logger::info('VAT fields initialization started');
+            Billingo_Logger::info('VAT fields initialization started');
         }
-        
+
         // HuCommerce plugin ellenőrzése
         $is_hucommerce_active = self::is_hucommerce_active();
         if ($is_hucommerce_active) {
@@ -56,7 +56,7 @@ class Billingo_Checkout_Fields
             add_action('woocommerce_checkout_update_order_meta', [self::class, 'save_vat_number_field']);
             add_action('woocommerce_admin_order_data_after_billing_address', [self::class, 'display_vat_number_in_admin']);
             add_action('woocommerce_order_details_after_customer_details', [self::class, 'display_vat_number_in_order_details']);
-            
+
             if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
                 Billingo_Logger::info('VAT number field hooks added');
             }
@@ -72,7 +72,7 @@ class Billingo_Checkout_Fields
         if (!function_exists('is_plugin_active')) {
             require_once(ABSPATH . 'wp-admin/includes/plugin.php');
         }
-        
+
         return class_exists('HuCommerce') || function_exists('hucommerce_init') || is_plugin_active('hucommerce/hucommerce.php');
     }
 
@@ -82,7 +82,7 @@ class Billingo_Checkout_Fields
     public static function add_vat_number_field(array $fields): array
     {
         $notice = get_option('wc_billingo_vat_number_notice', 'Az adószám megadása kötelező magyar adóalanyok esetében, ezért amennyiben rendelkezik adószámmal, azt kötelező megadni a számlázási adatoknál.');
-        
+
         $fields['billing']['billing_vat_number'] = [
             'label' => __('Adószám', 'billingo'),
             'placeholder' => __('Adószám (opcionális)', 'billingo'),
@@ -105,7 +105,7 @@ class Billingo_Checkout_Fields
         // Jelenleg csak alapvető ellenőrzést végzünk
         if (isset($_POST['billing_vat_number']) && !empty($_POST['billing_vat_number'])) {
             $vat_number = sanitize_text_field($_POST['billing_vat_number']);
-            
+
             // Magyar adószám formátum ellenőrzése
             if (!empty($vat_number) && !self::is_valid_hungarian_vat_number($vat_number)) {
                 // Nem blokkoljuk a rendelést, csak figyelmeztetést adunk
@@ -132,7 +132,7 @@ class Billingo_Checkout_Fields
     public static function display_vat_number_in_admin($order): void
     {
         $vat_number = self::get_vat_number_from_order($order);
-        
+
         if (!empty($vat_number)) {
             //echo '<p><strong>' . __('Adószám:', 'billingo') . '</strong> ' . esc_html($vat_number) . '</p>';
         }
@@ -144,7 +144,7 @@ class Billingo_Checkout_Fields
     public static function display_vat_number_in_order_details($order): void
     {
         $vat_number = self::get_vat_number_from_order($order);
-        
+
         if (!empty($vat_number)) {
             //echo '<tr><th>' . __('Adószám:', 'billingo') . '</th><td>' . esc_html($vat_number) . '</td></tr>';
         }
@@ -167,7 +167,7 @@ class Billingo_Checkout_Fields
 
         // Először az "adoszam" meta mezőből próbáljuk
         $vat_number = get_post_meta($order_id, 'adoszam', true);
-        
+
         // Ha nincs, akkor a _billing_vat_number-ből
         if (empty($vat_number)) {
             $vat_number = get_post_meta($order_id, '_billing_vat_number', true);
@@ -194,7 +194,7 @@ class Billingo_Checkout_Fields
     {
         // Eltávolítjuk a szóközöket és kötőjeleket
         $vat_number = preg_replace('/[\s\-]/', '', $vat_number);
-        
+
         // Magyar adószám: 8 számjegy-1-számjegy
         return preg_match('/^\d{8}-?\d{1}-?\d{2}$/', $vat_number) === 1;
     }
@@ -211,7 +211,8 @@ class Billingo_Checkout_Fields
         $already_saved = get_post_meta($order_id, '_billingo_original_prices_saved', true);
         //ha már el van mentve akkor nem mentünk rá újra, nehogy árban eltérés legyen a termék árának változása miatt
         if ($already_saved) {
-            return; 
+
+            return;
         }
 
         Billingo_Logger::info('save_product_original_prices called for order ID: ' . $order_id);
@@ -229,13 +230,11 @@ class Billingo_Checkout_Fields
 
             if ($product && method_exists($product, 'get_regular_price')) {
                 $regular_price = $product->get_regular_price();
-
-                $sale_price = $item->get_subtotal()/ $item->get_quantity();
+                $sale_price = ($item->get_subtotal() + $item->get_subtotal_tax())/ $item->get_quantity() ;
                 if (!empty($regular_price)) {
                     // Metaadat mentése a rendelési tételhez
                     wc_add_order_item_meta($item_id, '_wc_billingo_product_full_price_without_sale', $regular_price);
                     wc_add_order_item_meta($item_id, '_wc_billingo_product_full_price_with_sale', $sale_price);
-
                     Billingo_Logger::info("Original prices saved for order {$order_id}, item {$item_id}: Regular={$regular_price}, Sale={$sale_price}");
                 } else {
                     Billingo_Logger::info("Empty regular price for Product ID: {$product->get_id()}");
