@@ -1,4 +1,8 @@
 # Changelog
+-**4.2.3** - 2025.07.16
+- Add negative fee logic
+- Add fee tax check
+- item discount update
 
 -**4.2.2** - 2025.07.08
 - extra fees update (if vat is not set in woocommerce) 

@@ -355,7 +355,6 @@ class Billingo_Document_Generator
         if (!$this->isItemDiscountEnabled()) {
             return $productItems;
         }
-
         // Bundle elemekre ne alkalmazzunk tételenkénti kedvezményt
         if ($isBundleItem) {
             return $productItems;
@@ -366,200 +365,53 @@ class Billingo_Document_Generator
         Billingo_Logger::info('Regular price: ' . $this->getRegularPriceFromItemMeta($item, $product) . ', Sale price: ' . $this->getSalePriceFromItemMeta($item));
         Billingo_Logger::info('Item total (WC already includes discounts): ' . $item->get_total());
 
-        if (($this->getSalePriceFromItemMeta($item) > 0) &&
-            $this->getRegularPriceFromItemMeta($item, $product) > $this->getSalePriceFromItemMeta($item)) {
 
-            // Itt is az elmentett regular price-t használjuk, ha elérhető
+        $vatObject = $this->getCalculatedDateForItem('vat', $itemData)->value ?? '0%';
+        if ($vatObject == null) {
+            $vatObject = VatEnum::PERCENT_0->value;
+        }
+        $vatRate = $this->getVatRateFromCode($vatObject);
+        // Itt is az elmentett regular price-t használjuk, ha elérhető
+        //if(wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'))){
+        $regularPrice = $this->getRegularPriceFromItemMeta($item, $product) * (1 + ($vatRate / 100));
+        /*}else {
             $regularPrice = $this->getRegularPriceFromItemMeta($item, $product);
-            $salePrice = $this->getSalePriceFromItemMeta($item);
+        }*/
 
-            if (wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax')) && $item->get_total_tax() > 0) {
-                $salePrice = $salePrice * (1 + ($this->getVatRateFromCode($this->getCalculatedDateForItem('vat', $itemData)->value ?? '0%') / 100));
-                $regularPrice = $regularPrice * (1 + ($this->getVatRateFromCode($this->getCalculatedDateForItem('vat', $itemData)->value ?? '0%') / 100));
-            }
+        $salePrice = $this->getSalePriceFromItemMeta($item);
 
-            Billingo_Logger::info('Discount calculation - Using regular price: ' . $regularPrice . ', Sale price: ' . $salePrice);
-            Billingo_Logger::info('Regular price: ' . $regularPrice . ', Sale price: ' . $salePrice);
+        Billingo_Logger::info('Discount calculation - Using regular price: ' . $regularPrice . ', Sale price: ' . $salePrice);
+        Billingo_Logger::info('Regular price: ' . $regularPrice . ', Sale price: ' . $salePrice);
 
-            // Nullás termékek (pl. ajándékok) kezelése
-            if ($item->get_total() == 0) {
-                $meta = $item->get_meta_data();
-                if (isset($meta['type']) && stripos($meta['type'], 'free')) {
-                    $salePrice = 0;
-                }
-            }
-
-            if ($regularPrice > $salePrice) {
-                $vatObject = $this->getCalculatedDateForItem('vat', $itemData)->value ?? '0%';
-                if ($vatObject == null) {
-                    $vatObject = VatEnum::PERCENT_0->value;
-                }
-                $vatRate = $this->getVatRateFromCode($vatObject);
-                $netDiscount = ($regularPrice - $salePrice) * ($itemData['quantity'] ?? 1);
-                $grossDiscount = $netDiscount * (1 + ($vatRate / 100));
-
-                // WooCommerce árazási beállítás újra lekérése a kedvezmény számításhoz
-                $priceIncludesTaxForDiscount = wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'));
-                $itemIsTaxableForDiscount = $item->get_total_tax() > 0;
-                Billingo_Logger::info('net discount: ' . $netDiscount);
-
-                if (!$priceIncludesTaxForDiscount && $itemIsTaxableForDiscount) {
-                    $discountAmount = $grossDiscount;
-                } else {
-                    $discountAmount = $netDiscount;
-                }
-
-                Billingo_Logger::info('Kedvezmény tétel hozzáadása bruttó értékkel: ' . $discountAmount);
-
-                // Kedvezmény tétel hozzáadása bruttó értékkel
-                $discountItem = new DocumentProductData([
-                    'name' => __('Kedvezmény - ', 'billingo') . ($itemData['name'] ?? 'Termék'),
-                    'quantity' => $itemData['quantity'] ?? 1,
-                    'unit_price' => -$discountAmount / ($itemData['quantity'] ?? 1),
-                    'unit_price_type' => UnitPriceTypeEnum::GROSS->value,
-                    'unit' => $this->getCalculatedDateForItem('unit'),
-                    'vat' => $this->getCalculatedDateForItem('vat', $itemData)->value ?? '0%',
-                ]);
-
-                // áfa felülírás ha kell
-                if (wcFlexibleIsTrue(get_option('wc_billingo_tax_override'))) {
-                    $discountItem = $this->overrideTax($discountItem);
-                }
-
-                $productItems[] = $discountItem;
+        // Nullás termékek (pl. ajándékok) kezelése
+        if ($item->get_total() == 0) {
+            $meta = $item->get_meta_data();
+            if (isset($meta['type']) && stripos($meta['type'], 'free')) {
+                $salePrice = 0;
             }
         }
 
-        return $productItems;
-    }
+        if ($regularPrice > $salePrice) {
+            $Discount = ($regularPrice - $salePrice);
 
-    /**
-     * Alkalmazza a bundle kedvezményeket, ha engedélyezve van.
-     *
-     * @param DocumentProductData[] $productItems Termék tételek tömbje
-     * @param array $bundleData Bundle adatok tömbje
-     * @param array $items Rendelési tételek tömbje
-     * @return DocumentProductData[] A frissített termék tételek tömbje
-     */
-    private function applyBundleDiscounts(array $productItems, array $bundleData, array $items): array
-    {
-        // Ha a tételenkénti kedvezmény beállítás nincs bekapcsolva, csak visszaadjuk az eredeti tömböt
-        if (!$this->isItemDiscountEnabled()) {
-            Billingo_Logger::info('Bundle kedvezmény kihagyva - tételenkénti kedvezmények ki vannak kapcsolva');
-            return $productItems;
-        }
+            Billingo_Logger::info('Kedvezmény tétel hozzáadása bruttó értékkel: ' . $Discount);
 
-        Billingo_Logger::info('Bundle kedvezmény számítás kezdése - bundleData count: ' . count($bundleData));
+            // Kedvezmény tétel hozzáadása bruttó értékkel
+            $discountItem = new DocumentProductData([
+                'name' => __('Kedvezmény - ', 'billingo') . ($itemData['name'] ?? 'Termék'),
+                'quantity' => $itemData['quantity'] ?? 1,
+                'unit_price' => -$Discount,
+                'unit_price_type' => UnitPriceTypeEnum::GROSS->value,
+                'unit' => $this->getCalculatedDateForItem('unit'),
+                'vat' => $this->getCalculatedDateForItem('vat', $itemData)->value ?? '0%',
+            ]);
 
-        foreach ($bundleData as $cartKey => $bundle) {
-            // Bundle kedvezmény számítás: Bundle részek összege - Bundle akciós ár
-            $mainItem = $bundle['main_item'];
-            $mainItemData = $mainItem->get_data();
-
-            // Bundle részek összegzése (teljes áron)
-            $bundleItemsPriceSum = 0;
-            foreach ($bundle['bundled_items'] as $bundledItem) {
-                $bundledItemData = $bundledItem->get_data();
-                $bundledProduct = $bundledItem->get_product();
-                $bundledItemPrice = $this->getRegularPriceFromItemMeta($bundledItem, $bundledProduct);
-
-                // ÁFA számítás bundle részeknél is
-                $price_includes_tax = wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'));
-                $item_is_taxable = $bundledItem->get_total_tax() > 0;
-
-                Billingo_Logger::info('bundledItemData total tax: ' . $bundledItem->get_total_tax());
-                Billingo_Logger::info('bundledItemData tax class: ' . $bundledItemData['tax_class']);
-                Billingo_Logger::info('bundledItemData item_is_taxable: ' . wcFlexibleIsTrue($item_is_taxable));
-                Billingo_Logger::info('bundledItemData price_includes_tax: ' . wcFlexibleIsTrue($price_includes_tax));
-
-                if(!$price_includes_tax && $item_is_taxable){
-                    $vatObject = $this->getCalculatedDateForItem('vat', $bundledItemData);
-                    $vatRate = 0;
-                    if ($vatObject && $vatObject->value) {
-                        $vatRate = $this->getVatRateFromCode($vatObject->value);
-                    }
-                    //$bundledItemData['tax_class'] != 'zero-rate'
-                    Billingo_Logger::info('bundledItemData vatRate: ' . $vatRate);
-                    $bundledItemPrice = $bundledItemPrice + ($bundledItemPrice * ($vatRate / 100));
-                }
-                Billingo_Logger::info('bundledItemPrice: ' . $bundledItemPrice);
-                $bundleItemsPriceSum += $bundledItemPrice * ($bundledItemData['quantity'] ?? 1);
+            // áfa felülírás ha kell
+            if (wcFlexibleIsTrue(get_option('wc_billingo_tax_override'))) {
+                $discountItem = $this->overrideTax($discountItem);
             }
 
-            // Lekérjük a letárolt eredeti és akciós árakat (1 darab árát)
-            $originalPricePerUnit = $this->getRegularPriceFromItemMeta($mainItem, $mainItem->get_product());
-            $salePricePerUnit = $this->getSalePriceFromItemMeta($mainItem);
-            $bundleQuantity = $mainItemData['quantity'] ?? 1;
-
-            // Szorozzuk meg a mennyiséggel
-            $originalPrice = $originalPricePerUnit * $bundleQuantity;
-            $salePrice = $salePricePerUnit * $bundleQuantity;
-
-            Billingo_Logger::info('Bundle kedvezmény számítás - ' . $bundle['bundle_name']);
-            Billingo_Logger::info('Bundle részek összege: ' . $bundleItemsPriceSum);
-            Billingo_Logger::info('Bundle eredeti ár per unit (meta): ' . $originalPricePerUnit);
-            Billingo_Logger::info('Bundle akciós ár per unit (meta): ' . $salePricePerUnit);
-            Billingo_Logger::info('Bundle mennyiség: ' . $bundleQuantity);
-            Billingo_Logger::info('Bundle eredeti ár ÖSSZESEN: ' . $originalPrice);
-            Billingo_Logger::info('Bundle akciós ár ÖSSZESEN: ' . $salePrice);
-
-            // TELJES bundle kedvezmény = Bundle részek összege - Bundle akciós ár (összes mennyiségre) ITT KELL
-            $bundleOwnDiscount = $originalPrice - $salePrice;
-            //$bundleDiscount = $bundleItemsPriceSum - ($salePrice - $bundleOwnDiscount);
-            $bundleDiscount = $bundleItemsPriceSum - $salePrice;
-
-            // Debug: külön megmutatjuk a kedvezmény összetevőit
-            // Bundle saját kedvezménye (ha akciós)
-            $bundlePackageDiscount = $bundleItemsPriceSum - ($originalPrice - $bundleOwnDiscount); // Bundle csomag kedvezmény
-            Billingo_Logger::info('belépünk');
-
-            Billingo_Logger::info('Bundle saját kedvezmény (akció): ' . $bundleOwnDiscount . ' (' . $originalPrice . ' - ' . $salePrice . ')');
-            Billingo_Logger::info('Bundle csomag kedvezmény: ' . $bundlePackageDiscount . ' (' . $bundleItemsPriceSum . ' - ' . $originalPrice . ')');
-            Billingo_Logger::info('TELJES bundle kedvezmény: ' . $bundleDiscount . ' (' . $bundleItemsPriceSum . ' - ' . $salePrice . ')');
-
-            if ($bundleDiscount > 0) {
-                // $bundleQuantity már definiálva van feljebb
-
-                // ÁFA számítás a bundle kedvezményhez
-                $price_includes_tax = wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'));
-
-                if(!$price_includes_tax){
-                    // Nettó árazás esetén a kedvezmény is nettó, hozzá kell adni az ÁFA-t
-                    $vatObject = $this->getCalculatedDateForItem('vat', $mainItemData);
-                    $vatRate = 0;
-                    if ($vatObject && $vatObject->value) {
-                        $vatRate = $this->getVatRateFromCode($vatObject->value);
-                    }
-
-                    $grossDiscount = $bundleDiscount * (1 + ($vatRate / 100));
-                    $unitDiscount = $grossDiscount / $bundleQuantity;
-
-                    Billingo_Logger::info('Bundle kedvezmény ÁFA számítás: nettó=' . $bundleDiscount . ', ÁFA=' . $vatRate . '%, bruttó=' . $grossDiscount);
-                } else {
-                    // Bruttó árazás esetén a kedvezmény is bruttó
-                    $unitDiscount = $bundleDiscount / $bundleQuantity;
-
-                    Billingo_Logger::info('Bundle kedvezmény bruttó árazás: ' . $bundleDiscount);
-                }
-                $bundleDiscountItem = new DocumentProductData([
-                    'name' => __('Csomag kedvezmény - ', 'billingo') . $bundle['bundle_name'],
-                    'quantity' => $bundleQuantity,
-                    'unit_price' => -$unitDiscount,
-                    'unit_price_type' => UnitPriceTypeEnum::GROSS->value,
-                    'unit' => $this->getCalculatedDateForItem('unit'),
-                    'vat' => $this->getCalculatedDateForItem('vat', $mainItemData)->value ?? '0%',
-                ]);
-
-                // áfa felülírás ha kell
-                if(wcFlexibleIsTrue(get_option('wc_billingo_tax_override'))){
-                    $bundleDiscountItem = $this->overrideTax($bundleDiscountItem);
-                }
-
-                $productItems[] = $bundleDiscountItem;
-                Billingo_Logger::info('Bundle kedvezmény tétel hozzáadva: ' . $bundleQuantity . ' × (-' . $unitDiscount . ') = -' . ($unitDiscount * $bundleQuantity) . ' (' . $bundle['bundle_name'] . ')');
-            } else {
-                Billingo_Logger::info('Nincs bundle kedvezmény (eredeti és akciós ár azonos)');
-            }
+            $productItems[] = $discountItem;
         }
 
         return $productItems;
@@ -574,11 +426,6 @@ class Billingo_Document_Generator
      */
     private function applyCouponDiscounts(array $productItems, array $items): array
     {
-        // Ha a tételenkénti kedvezmény beállítás nincs bekapcsolva, csak visszaadjuk az eredeti tömböt
-        /*if (!$this->isItemDiscountEnabled()) {
-            Billingo_Logger::info('Kupon kedvezmény kihagyva - tételenkénti kedvezmények ki vannak kapcsolva');
-            return $productItems;
-        }*/
 
         // Kupon kedvezmény hozzáadása - minden kuponhoz külön tétel
         $usedCoupons = $this->order->get_coupon_codes();
@@ -620,10 +467,7 @@ class Billingo_Document_Generator
 
                         $vatCode = $firstItemData ? $this->getCalculatedDateForItem('vat', $firstItemData)->value ?? VatEnum::PERCENT_0->value : VatEnum::PERCENT_0->value;
 
-                        $originalCouponDiscount = $couponDiscount;
-
                         $couponDiscount = $couponDiscount * (1 + ($this->getVatRateFromCode($vatCode) / 100));
-                        Billingo_Logger::info("Kupon '{$couponCode}' ÁFA számítás: {$originalCouponDiscount} * (1 + {$this->getVatRateFromCode($vatCode)}%) = {$couponDiscount}");
                     }
 
 
@@ -792,13 +636,6 @@ class Billingo_Document_Generator
             // Ellenőrizzük, hogy bundle részterméke-e vagy bundle főtermék-e
             $bundledBy = wc_get_order_item_meta($item->get_id(), '_bundled_by', true);
             $isBundleItem = !empty($bundledBy);
-            //$isBundleMainProduct = in_array($item, $bundleMainProducts);
-
-            // Bundle főterméket kihagyjuk (később kedvezmény tételként kezeljük)
-            /*if ($isBundleMainProduct) {
-                Billingo_Logger::info('Bundle főtermék kihagyva a tételek közül: ' . $itemData['name']);
-                continue;
-            }*/
 
             if ($shouldSyncProducts && isset($productSync) && $product) {
                 try {
@@ -808,103 +645,23 @@ class Billingo_Document_Generator
                 }
             }
             Billingo_Logger::info('item tax class: ' . $itemData['tax_class']);
-            // Bundle résztermékeknél a teljes árat használjuk, egyéb termékeknél az eredeti logikát
-            if ($isBundleItem) {
-                //$unitPrice = $this->getRegularPriceFromItemMeta($item, $product);
-                $unitPrice = $item->get_subtotal()/$item->get_quantity();
 
-                Billingo_Logger::info('Bundle részterméke - teljes ár használata: ' . $unitPrice . ' (' . $itemData['name'] . ')');
+            $vatObject = $this->getCalculatedDateForItem('vat', $itemData);
 
-                // Bundle részek esetén kényszerítjük az ÁFA számítást, mert a WooCommerce 0-ra állítja
-                $price_includes_tax = wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'));
+            $vatRate = ($vatObject && $vatObject->value) ? $this->getVatRateFromCode($vatObject->value) : 0;
 
-                // Bundle részek esetén mindig adóköteles tételként kezeljük kivéve ha a tax_class zero-rate
-                $item_is_taxable = $itemData['tax_class'] != 'zero-rate';
-
-                Billingo_Logger::info('Bundle részterméke - kényszerített ÁFA számítás: price_includes_tax=' . ($price_includes_tax ? 'yes' : 'no') . ', forced_taxable=yes');
-
-                if(!$price_includes_tax && $item_is_taxable){
-                    // WooCommerce nettó árazás: Regular price-hoz tartozó ÁFA kiszámítása
-                    $vatObject = $this->getCalculatedDateForItem('vat', $itemData);
-                    $vatRate = 0;
-                    if ($vatObject && $vatObject->value) {
-                        $vatRate = $this->getVatRateFromCode($vatObject->value);
-                    }
-
-                    $regularPrice = $unitPrice; // Már kiszámítottuk a helper metódussal
-                    $regularPriceTax = $regularPrice * ($vatRate / 100);
-
-                    $unitPrice = $item->get_subtotal() + $item->get_subtotal_tax();
-
-                    Billingo_Logger::info('Bundle részterméke - ÁFA számítás: nettó=' . $regularPrice . ', ÁFA kulcs=' . $vatRate . '%, ÁFA összeg=' . $regularPriceTax . ', bruttó=' . $unitPrice);
-                } else {
-                    // WooCommerce bruttó árazás VAGY nem adóköteles tétel: a regular price már bruttó
-
-                    Billingo_Logger::info('Bundle, áfa hozzáadás nem szükséges, áfát tartalmaz, vagy zero-rate tax class');
-                    Billingo_Logger::info('Bundle részterméke - bruttó árazás, de nettóról számolva: nettó=' . $regularPrice . ', ÁFA kulcs=' . $vatRate . '%, ÁFA összeg=' . $regularPriceTax . ', bruttó=' . $unitPrice);
-                }
-            } else {
-                //$unitPrice = $this->getRegularPriceFromItemMeta($item, $product);
-                $unitPrice = $item->get_subtotal()/$item->get_quantity();
-
-                // Vizsgáljuk meg a WooCommerce árazási beállításokat
-                $price_includes_tax = wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'));
-                $item_is_taxable = (($item->get_total_tax() > 0) && $itemData['tax_class'] != 'zero-rate');
+            $unitPriceorig = $isBundleItem
+                ? $item->get_subtotal() / $item->get_quantity()
+                : ($this->getRegularPriceFromItemMeta($item, $product) ?: $item->get_subtotal() / $item->get_quantity());
 
 
-                Billingo_Logger::info('Price calculation - Original unit price: ' . $unitPrice);
-                Billingo_Logger::info('Price includes tax setting: ' . ($price_includes_tax ? 'yes' : 'no'));
-                Billingo_Logger::info('Item is taxable: ' . ($item_is_taxable ? 'yes' : 'no'));
-                Billingo_Logger::info('Item total: ' . $item->get_total() . ', Item tax: ' . $item->get_total_tax() . ', Quantity: ' . $item->get_quantity());
-
-                // Mindig bruttó árat küldünk a Billingo-nak
-                // A bruttó ár = nettó ár + ÁFA (item total + item tax)
-                if(!$price_includes_tax && $item_is_taxable){
-                    // WooCommerce nettó árazás: Regular price-hoz tartozó ÁFA kiszámítása
-                    $vatObject = $this->getCalculatedDateForItem('vat', $itemData) ?? '0%';
-                    $vatRate = 0;
-                    if ($vatObject && $vatObject->value) {
-                        $vatRate = $this->getVatRateFromCode($vatObject->value);
-                    }
-
-                    $regularPrice = $unitPrice; // Már kiszámítottuk a helper metódussal
-                    $regularPriceTax = $regularPrice * ($vatRate / 100);
-
-                    $unitPrice = $item->get_subtotal()/$item->get_quantity() * (1 + $vatRate / 100);
-                    Billingo_Logger::info('WC nettó árazás - ÁFA számítás: nettó=' . $regularPrice . ', ÁFA kulcs=' . $vatRate . '%, ÁFA összeg=' . $regularPriceTax . ', bruttó=' . $unitPrice);
-                    Billingo_Logger::info('Regular price: ' . $regularPrice . ', VAT rate: ' . $vatRate . '%, Tax amount: ' . $regularPriceTax . ', Final gross price: ' . $unitPrice);
-                } else {
-                    // WooCommerce bruttó árazás VAGY nem adóköteles tétel: a regular price már bruttó
-                    // Az unitPrice már kiszámítottuk a helper metódussal, nincs mit tenni
-
-                    //ha a termék brutto akkor bruttoval hozzuk létre az árat
-
-                    //de ha mégis ide fut be a woocom beállítások miatt és láthatóan tartalmaz áfát akkor adjuk hozzá az áfát is.
-                    if($item->get_total_tax() > 0){
-                        Billingo_Logger::info('áfát tartalmazott a termék, adjuk hozzá az áfát is');
-                        $regular_price = $this->getRegularPriceFromItemMeta($item, $product);
-
-                        $vatObject = $this->getCalculatedDateForItem('vat', $itemData) ?? '0%';
-                        $vatRate = 0;
-                        if ($vatObject && $vatObject->value) {
-                            $vatRate = $this->getVatRateFromCode($vatObject->value);
-                        }
-                        //$regular_price_tax = $regular_price * ($vatRate / 100);
-                        $unitPrice = ($item->get_subtotal()+$item->get_subtotal_tax())/$item->get_quantity();
-                    }
-
-                    Billingo_Logger::info('WC bruttó árazás vagy nem adóköteles - Regular price as gross: ' . $unitPrice);
-                }
-            }
-
-            Billingo_Logger::info('Final gross unit price sent to Billingo: ' . $unitPrice);
 
             // Dokumentum elem létrehozása
             try {
                 $originalItem = new DocumentProductData([
                     'name' => $itemData['name'] ?? 'Termék',
                     'quantity' => $itemData['quantity'] ?? 1,
-                    'unit_price' => $unitPrice,
+                    'unit_price' => $unitPriceorig * (1 + $vatRate / 100),
                     'unit_price_type' => $this->getCalculatedDateForItem('unit_price_type')->value,
                     'unit' => $this->getCalculatedDateForItem('unit'),
                     'vat' => $this->getCalculatedDateForItem('vat', $itemData)->value ?? '0%',
@@ -913,7 +670,6 @@ class Billingo_Document_Generator
                     'sku' => !empty($this->getProductSku($itemData)) ? $this->getProductSku($itemData) : null,
                     'is_generate_erase_code' => $this->hasEraseCode($itemObject),
                 ]);
-
                 // áfa felülírás ha kell
                 if(wcFlexibleIsTrue(get_option('wc_billingo_tax_override'))){
                     $originalItem = $this->overrideTax($originalItem);
@@ -927,11 +683,11 @@ class Billingo_Document_Generator
             }
 
             // Alkalmazzuk a tételenkénti kedvezményeket, ha engedélyezve van
-            $productItems = $this->applyItemDiscounts($productItems, $item, $itemData, $product, $isBundleItem);
-        }
-        // Bundle kedvezmények hozzáadása (ha engedélyezve van)
-        $productItems = $this->applyBundleDiscounts($productItems, $bundleData, $items);
 
+            if (wc_get_order_item_meta($item->get_id(), '_wc_billingo_product_full_price_with_sale', true)){
+                $productItems = $this->applyItemDiscounts($productItems, $item, $itemData, $product, $isBundleItem);
+            }
+        }
         // Kupon kedvezmények hozzáadása (ha engedélyezve van)
         $productItems = $this->applyCouponDiscounts($productItems, $items);
 
@@ -1033,15 +789,19 @@ class Billingo_Document_Generator
                     Billingo_Logger::info('Fee ÁFA kulcs: ' . $feeVatCode->value);
 
                     // A bruttó összeg kiszámítása
-                    $grossAmount = $feeTotal * (1 + ($feeVatCode->value ?? 0) / 100);
+                    $firstItem = reset($items);
+                    $firstItemData = $firstItem ? $firstItem->get_data() : null;
 
+                    $vatCode = $firstItemData ? $this->getCalculatedDateForItem('vat', $firstItemData)->value ?? VatEnum::PERCENT_27->value : VatEnum::PERCENT_0->value;
 
-                    // Ha WooCommerce nettó árazást használ és van ÁFA, akkor hozzáadjuk az ÁFA-t
-                    if (!wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax')) && $feeTax > 0) {
+                    Billingo_Logger::info('Fee ÁFA kulcs: ' . $feeVatCode->value);
+
+                    if($feeTax != 0 && (!wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax')) || $vatCode != $feeVatCode->value  )) {
                         $grossAmount = $feeTotal + $feeTax;
-                        Billingo_Logger::info('Nettó ár + ÁFA: ' . $feeTotal . ' + ' . $feeTax . ' = ' . $grossAmount);
+                        $usedvatcode = $vatCode;
                     } else {
-                        Billingo_Logger::info('Bruttó ár használata: ' . $grossAmount);
+                        $grossAmount = $feeTotal * (1 + ($feeVatCode->value ?? 0) / 100);
+                        $usedvatcode = $feeVatCode->value;
                     }
 
                     $feeItem = new DocumentProductData([
@@ -1052,7 +812,7 @@ class Billingo_Document_Generator
                         'unit_price' => $grossAmount,
                         'unit_price_type' => UnitPriceTypeEnum::GROSS->value,
                         'unit' => $this->getCalculatedDateForItem('unit'),
-                        'vat' => $feeVatCode->value,
+                        'vat' => $usedvatcode,
                         'comment' => ''
                     ]);
 
@@ -1168,7 +928,7 @@ class Billingo_Document_Generator
 
         // Eltávolítjuk a '%' karaktert és egyéb nem numerikus karaktereket
         $vatRate = preg_replace('/[^0-9\.]/', '', $vatCode);
-        return !empty($vatRate) ? floatval($vatRate) : $defaultRate;
+        return !empty($vatRate) || $vatRate == 0 ? floatval($vatRate) : $defaultRate;
     }
 
     private function getCalculatedDateForItem(string $dataName, array $item = null): mixed
@@ -1429,27 +1189,8 @@ class Billingo_Document_Generator
             return floatval($savedRegularPrice);
         }
 
-
-
-        // Ha nincs elmentve, akkor a termékből lekérjük
-        if ($product && method_exists($product, 'get_regular_price')) {
-            $regularPrice = $product->get_regular_price();
-            if (!empty($regularPrice)) {
-                Billingo_Logger::info('Using current regular price from product: ' . $regularPrice);
-                return floatval($regularPrice);
-            }
-        }
-
-        // Fallback: ha semmi más nem működik, az item total/quantity arányából számoljuk
-        $itemData = $item->get_data();
-        if (isset($itemData['total']) && isset($itemData['quantity']) && $itemData['quantity'] > 0) {
-            $calculatedPrice = $itemData['total'] / $itemData['quantity'];
-            Billingo_Logger::info('Using calculated price from item total/quantity: ' . $calculatedPrice);
-            return floatval($calculatedPrice);
-        }
-
         Billingo_Logger::warning('Could not determine regular price, returning 0');
-        return 0.0;
+        return 0;
     }
 
     /**
