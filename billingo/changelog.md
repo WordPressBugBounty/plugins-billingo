@@ -1,4 +1,7 @@
 # Changelog
+-**4.2.4** - 2025.07.16
+- vat check
+
 -**4.2.3** - 2025.07.16
 - Add negative fee logic
 - Add fee tax check

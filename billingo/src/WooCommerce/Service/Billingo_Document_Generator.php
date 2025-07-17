@@ -654,14 +654,19 @@ class Billingo_Document_Generator
                 ? $item->get_subtotal() / $item->get_quantity()
                 : ($this->getRegularPriceFromItemMeta($item, $product) ?: $item->get_subtotal() / $item->get_quantity());
 
+            $checkosszeg = ($item->get_subtotal() + $item->get_subtotal_tax()) / $item->get_quantity();
 
+            if((int)$unitPriceorig != (int)$checkosszeg){
+                $unitPriceorig = $item->get_subtotal() / $item->get_quantity() * (1 + $vatRate / 100);
+
+            }
 
             // Dokumentum elem létrehozása
             try {
                 $originalItem = new DocumentProductData([
                     'name' => $itemData['name'] ?? 'Termék',
                     'quantity' => $itemData['quantity'] ?? 1,
-                    'unit_price' => $unitPriceorig * (1 + $vatRate / 100),
+                    'unit_price' => $unitPriceorig,
                     'unit_price_type' => $this->getCalculatedDateForItem('unit_price_type')->value,
                     'unit' => $this->getCalculatedDateForItem('unit'),
                     'vat' => $this->getCalculatedDateForItem('vat', $itemData)->value ?? '0%',
