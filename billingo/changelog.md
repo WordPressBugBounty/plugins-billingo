@@ -1,4 +1,7 @@
 # Changelog
+-**4.2.5** - 2025.08.12
+- Payment depend invoice turn off
+
 -**4.2.4** - 2025.07.16
 - vat check
 

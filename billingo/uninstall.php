@@ -6,7 +6,7 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
 
 global $wpdb;
 
-$options = $wpdb->get_col("SELECT option_name FROM $wpdb->options WHERE option_name LIKE 'wc_billingo_%'");
+$options = $wpdb->get_col("SELECT option_name FROM $wpdb->options WHERE option_name LIKE 'wc_billingo_%' AND option_name NOT LIKE 'wc_billingo_plus_%'");
 
 foreach ($options as $option) {
     delete_option($option);

@@ -3,7 +3,7 @@ Tags: billingo.hu, billingo, woocommerce, szamlazas, magyar
 Requires at least: 6.4
 Tested up to: 6.8.1
 Requires PHP: 8.1
-Stable tag: 4.2.4
+Stable tag: 4.2.5
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -55,6 +55,35 @@ Pár kiemelt pont a működéssel kapcsolatosan:
 3. Beállíátsok elmentése után lehetőség van a fizetési módok összepárosítására a billingo rendszerében megfelelővel
 
 == Changelog ==
+
+= 4.2.5
+* Payment depend invoice turn off
+
+= 4.2.4
+* vat check
+
+= 4.2.3
+* Add negative fee logic
+* Add fee tax check
+* item discount update
+
+= 4.2.2
+* extra fees update (if vat is not set in woocommerce)
+* Dataerasecode fix
+* Only add the vendor ID to the invoice.
+
+= 4.2.1
+* Fees problem
+* Order comment
+
+= 4.2.0
+* item discount selectable.
+
+= 4.1.4
+* Add module compatibility
+
+= 4.0.5
+* Bugfix Tax override problem
 
 = 4.0.0.
 * Új SDK és stabilitás növelés. 

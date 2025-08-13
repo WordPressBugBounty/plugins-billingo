@@ -52,7 +52,7 @@ class Billingo_Controller
             isset($hasProforma['billingo_id']) && 
             !empty($hasProforma['billingo_id']);
 
-        $this->shouldDisableWcEmail($document->type);
+            $this->shouldDisableWcEmail($document->type);
 
             if ($canUseProforma) {
                 return $this->createInvoiceFromProforma($hasProforma['billingo_id']);

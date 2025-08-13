@@ -93,14 +93,18 @@ class Billingo_Document_Generator
         if('$type->value' != 'inovice'){
             unset($this->documentData['vendor_id']);
         }
-        $document = new DocumentInsert($this->documentData);
+        if($this->documentData['skipcreatedocuments'] == 0){
+            $document = new DocumentInsert($this->documentData);
+        } else {
+            Billingo_Logger::error(ucfirst($type->value) . " " .  $this->order->get_id() . " számú rendelés esetében a számlázás kikapcsolva.");
+            return null;
+        }
 
         if ($document->hasError()) {
 
             $errors = $document->getErrors();
             Billingo_Logger::error(ucfirst($type->value) . " generation: FAIL {$errors->getType()->value} "
                 . (empty($errors->getValues()) ? '' : json_encode($errors->getValues())));
-
             return null;
         } else {
 
@@ -112,7 +116,6 @@ class Billingo_Document_Generator
             $document->settings->should_send_email = true;
             Billingo_Logger::info('Email send by Billingo');
         }
-        Billingo_Logger::info('Document: ' . json_encode($document));
         return $document;
     }
 
@@ -146,6 +149,7 @@ class Billingo_Document_Generator
 
         Billingo_Logger::info('Bank account ID: ' . ($bankAccountId ?: 'not set (using default)') . ' Currency: ' . $this->order->get_currency() );
         $document = [
+            'skipcreatedocuments' => (int) ( get_option("wc_billingo_doff_{$this->order->get_payment_method()}", 0) ?: 0 ),
             'vendor_id'=> (string)$this->order->get_id(),
             'partner_id' => $this->findOrCreatePartner($this->getPartnerName()),
             'block_id' => (int)get_option('wc_billingo_invoice_block'),

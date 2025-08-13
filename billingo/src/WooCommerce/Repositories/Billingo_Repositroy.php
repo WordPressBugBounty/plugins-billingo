@@ -94,7 +94,6 @@ class Billingo_Repositroy
     public function createFromDocument(int $orderId, Document $document): ?array
     {
         $filtered = $this->getDatafromDocument($orderId, $document);
-
         return is_null($filtered) ? null : $this->create($filtered);
     }
 
@@ -127,8 +126,7 @@ class Billingo_Repositroy
 
     private function getDatafromDocument(int $orderId, Document $document): ?array
     {
-        if ($document->hasError()) {
-
+        if ($document->hasError() && $document->getErrors()) {
             return null;
         }
 

@@ -406,6 +406,7 @@ class WC_Billingo_Admin_Controller
                     'pay' => (int)get_option('wc_billingo_mark_as_paid_' . $key, 0),
                     'pay2' => (int)get_option('wc_billingo_mark_as_paid2_' . $key, 0),
                     'pro' => (int)get_option('wc_billingo_proforma_' . $key, 0),
+                    'doff' => (int)get_option('wc_billingo_doff_' . $key, 0),
                 ];
             }  
         
@@ -828,6 +829,7 @@ class WC_Billingo_Admin_Controller
                 update_option('wc_billingo_mark_as_paid_' . $id, (int)($fields['mark_as_paid'] ?? 0));
                 update_option('wc_billingo_mark_as_paid2_' . $id, (int)($fields['mark_as_paid2'] ?? 0));
                 update_option('wc_billingo_proforma_' . $id, (int)($fields['proforma'] ?? 0));
+                update_option('wc_billingo_doff_' . $id, (int)($fields['documentoff'] ?? 0));
             }
         }
     }
