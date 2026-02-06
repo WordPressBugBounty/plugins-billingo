@@ -5,6 +5,7 @@ namespace App\Billingo\WooCommerce\Service;
 use App\Billingo\Enums\Document\TypeEnum;
 use App\Billingo\Enums\PaymentMethodEnum;
 use App\Billingo\Enums\UnitPriceTypeEnum;
+use App\Billingo\Enums\Document\LanguageEnum;
 use App\Billingo\Enums\VatEnum;
 use App\Billingo\Exceptions\BadContentException;
 use App\Billingo\Models\Document\DocumentInsert;
@@ -90,7 +91,7 @@ class Billingo_Document_Generator
         $this->collectDocumentData();
 
         $this->documentData['type'] = $type->value;
-        if('$type->value' != 'inovice'){
+        if($type->value != 'invoice'){
             unset($this->documentData['vendor_id']);
         }
         if($this->documentData['skipcreatedocuments'] == 0){
@@ -116,6 +117,7 @@ class Billingo_Document_Generator
             $document->settings->should_send_email = true;
             Billingo_Logger::info('Email send by Billingo');
         }
+        Billingo_Logger::info('Document: ' . json_encode($document));
         return $document;
     }
 
@@ -128,12 +130,10 @@ class Billingo_Document_Generator
         $deadline = isset($this->manualIncome['deadline'])
             ? (int)$this->manualIncome['deadline']
             : (int)get_option("wc_billingo_paymentdue_{$this->order->get_payment_method()}");
-        $language = wcFlexibleIsTrue(get_option('wc_billingo_invoice_lang_wpml'))
-        && !empty(get_post_meta($this->order->get_id(), 'wpml_order_language', true))
-            ? get_post_meta($this->order->get_id(), 'wpml_order_language', true)
-            : get_option('wc_billingo_invoice_lang');
+        $language = $this->get_order_language($this->order);
 
         $currency = $this->order->get_currency() ?: 'HUF';
+        $countryCode = $this->order->get_billing_country();
 
         // Bankszámla ID meghatározása deviza alapján
         $bankAccountId = $this->order->get_currency() === 'EUR'
@@ -149,7 +149,7 @@ class Billingo_Document_Generator
 
         Billingo_Logger::info('Bank account ID: ' . ($bankAccountId ?: 'not set (using default)') . ' Currency: ' . $this->order->get_currency() );
         $document = [
-            'skipcreatedocuments' => (int) ( get_option("wc_billingo_doff_{$this->order->get_payment_method()}", 0) ?: 0 ),
+            'skipcreatedocuments' => get_option("wc_billingo_doff_{$this->order->get_payment_method()}",0),
             'vendor_id'=> (string)$this->order->get_id(),
             'partner_id' => $this->findOrCreatePartner($this->getPartnerName()),
             'block_id' => (int)get_option('wc_billingo_invoice_block'),
@@ -164,8 +164,8 @@ class Billingo_Document_Generator
             'currency' => $currency,
             'conversion_rate' => $currency === 'HUF' ? 1.0 : $this->getCurrencyRate($currency, 'HUF'),
             'electronic' => wcFlexibleIsTrue(get_option('wc_billingo_electronic')),
-            'items' => $this->createProductItems(),
-            'comment' => $this->getNote(),
+            'items' => $this->createProductItems($countryCode),
+            'comment' => $this->getNote($this->order),
             'settings' => [
                 'round' => get_option('wc_billingo_invoice_round'),
                 'without_financial_fulfillment' => wcFlexibleIsTrue(get_option('mark_paid_without_financial_fulfillment')) && $paidType,
@@ -244,20 +244,32 @@ class Billingo_Document_Generator
     {
         // Get VAT number that was already retrieved in collectDocumentData
         $vatNumberFormCustom = get_option('wc_billingo_vat_number_form_custom');
-        Billingo_Logger::info('VAT number form custom: ' . $vatNumberFormCustom);
+        Billingo_Logger::info('VAT number form custom (raw): ' . $vatNumberFormCustom);
+
+        // Ellenőrizzük, hogy van-e érték, és kell-e elé aláhúzás
+        if (!empty($vatNumberFormCustom) && strpos($vatNumberFormCustom, '_') !== 0) {
+            $vatNumberFormCustom = '_' . $vatNumberFormCustom;
+            Billingo_Logger::info('VAT number form custom corrected with underscore: ' . $vatNumberFormCustom);
+        }
+
         $vatNumber = null;
-        if(!empty($vatNumberFormCustom)){
+        if (!empty($vatNumberFormCustom)) {
             $vatNumber = $this->order->get_meta($vatNumberFormCustom, true);
             Billingo_Logger::info('VAT number: ' . $vatNumber);
         }
+        $address1 = $this->order->get_billing_address_1();
 
+        if (strlen(trim($address1)) < 2 && wcFlexibleIsTrue(get_option('wc_billingo_test', false))) {
+            // ha üres vagy rövidebb mint 1 karakter, egészítsük ki
+            $address1 = substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 2);
+        }
         $descriptions = [
             'name' => $name,
             'address' => [
                 'country_code' => $this->order->get_billing_country() ?: 'HU',
                 'post_code' => $this->order->get_billing_postcode(),
                 'city' => $this->order->get_billing_city(),
-                'address' => $this->order->get_billing_address_1(),
+                'address' => $address1,
             ],
         ];
         // Add VAT number to partner data if available
@@ -376,11 +388,11 @@ class Billingo_Document_Generator
         }
         $vatRate = $this->getVatRateFromCode($vatObject);
         // Itt is az elmentett regular price-t használjuk, ha elérhető
-        //if(wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'))){
-        $regularPrice = $this->getRegularPriceFromItemMeta($item, $product) * (1 + ($vatRate / 100));
-        /*}else {
-            $regularPrice = $this->getRegularPriceFromItemMeta($item, $product);
-        }*/
+        if(wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'))){
+            $regularPrice = $this->getRegularPriceFromItemMeta($item, $product) ;
+        }else {
+            $regularPrice = $this->getRegularPriceFromItemMeta($item, $product)* (1 + ($vatRate / 100));
+        }
 
         $salePrice = $this->getSalePriceFromItemMeta($item);
 
@@ -395,8 +407,14 @@ class Billingo_Document_Generator
             }
         }
 
-        if ($regularPrice > $salePrice) {
-            $Discount = ($regularPrice - $salePrice);
+        if (round($regularPrice > $salePrice)) {
+            //if ($regularPrice > $salePrice) {
+            $priceDiff = $regularPrice - $salePrice;
+
+            $Discount = !wcFlexibleIsTrue(get_option('wc_billingo_decimalsoff'))
+                ? (int) round($priceDiff)
+                : $priceDiff;
+
 
             Billingo_Logger::info('Kedvezmény tétel hozzáadása bruttó értékkel: ' . $Discount);
 
@@ -450,6 +468,8 @@ class Billingo_Document_Generator
                     }
                 }
 
+
+
                 if ($couponDiscount > 0) {
                     // Ellenőrizzük, hogy szállítási kuponról van-e szó
                     $isShippingCoupon = $this->isCouponForShipping($couponCode);
@@ -458,42 +478,35 @@ class Billingo_Document_Generator
                         // Szállítási kupon esetén a szállítási ÁFA kulcsot használjuk
                         $vatCode = $this->getShippingCouponVatCode()->value ?? VatEnum::PERCENT_0->value;
                         //viszont ha a webáruházban a szállítási költség nettóban van megadva beállítás aktív, akkor a kuponra is rá kell számolni az áfát
-                        if(wcFlexibleIsTrue(get_option('wc_billingo_tax_shipping_pirce_type_is_net'))){
+                        if (wcFlexibleIsTrue(get_option('wc_billingo_tax_shipping_pirce_type_is_net'))) {
                             $couponDiscount = $couponDiscount * (1 + ($this->getVatRateFromCode($vatCode) / 100));
                         }
 
                         Billingo_Logger::info("Szállítási kupon ÁFA kulcsa: {$vatCode}");
 
-                    } else {
-                        // Normál kupon esetén az első termék ÁFA kulcsát használjuk
-                        $firstItem = reset($items);
-                        $firstItemData = $firstItem ? $firstItem->get_data() : null;
 
-                        $vatCode = $firstItemData ? $this->getCalculatedDateForItem('vat', $firstItemData)->value ?? VatEnum::PERCENT_0->value : VatEnum::PERCENT_0->value;
+                        $discountItem = new DocumentProductData([
+                            'name' => __('Kupon kedvezmény', 'billingo'),
+                            'quantity' => 1,
+                            'unit_price' => -(!wcFlexibleIsTrue(get_option('wc_billingo_decimalsoff'))
+                                ? (int)round($couponDiscount)
+                                : $couponDiscount),
+                            'unit_price_type' => UnitPriceTypeEnum::GROSS->value,
+                            'unit' => $this->getCalculatedDateForItem('unit'),
+                            'vat' => $vatCode,
+                        ]);
+                        // Áfa felülírás szállítási kupon esetén
 
-                        $couponDiscount = $couponDiscount * (1 + ($this->getVatRateFromCode($vatCode) / 100));
+                        if (wcFlexibleIsTrue(get_option('wc_billingo_tax_override_include_carrier'))) {
+                            $discountItem = $this->overrideTax($discountItem);
+                        } elseif (wcFlexibleIsTrue(get_option('wc_billingo_tax_override'))) {
+                            // Normál kupon esetén a standard ÁFA felülírás
+                            $discountItem = $this->overrideTax($discountItem);
+                        }
+                        $productItems[] = $discountItem;
+                        Billingo_Logger::info("Kupon kedvezmény tétel hozzáadva: {$couponCode} (-{$couponDiscount} {$this->order->get_currency()}) " . ($isShippingCoupon ? "[SZÁLLÍTÁSI KUPON]" : "[TERMÉK KUPON]"));
+
                     }
-
-
-                    $discountItem = new DocumentProductData([
-                        'name' => __('Kupon kedvezmény', 'billingo'),
-                        'quantity' => 1,
-                        'unit_price' => -$couponDiscount,
-                        'unit_price_type' => UnitPriceTypeEnum::GROSS->value,
-                        'unit' => $this->getCalculatedDateForItem('unit'),
-                        'vat' => $vatCode,
-                    ]);
-
-                    // Áfa felülírás szállítási kupon esetén
-
-                    if (wcFlexibleIsTrue(get_option('wc_billingo_tax_override_include_carrier'))) {
-                        $discountItem = $this->overrideTax($discountItem);
-                    } elseif (wcFlexibleIsTrue(get_option('wc_billingo_tax_override'))) {
-                        // Normál kupon esetén a standard ÁFA felülírás
-                        $discountItem = $this->overrideTax($discountItem);
-                    }
-                    $productItems[] = $discountItem;
-                    Billingo_Logger::info("Kupon kedvezmény tétel hozzáadva: {$couponCode} (-{$couponDiscount} {$this->order->get_currency()}) " . ($isShippingCoupon ? "[SZÁLLÍTÁSI KUPON]" : "[TERMÉK KUPON]"));
                 }
             }
         }
@@ -506,7 +519,7 @@ class Billingo_Document_Generator
      *
      * @return array A DocumentProductData elemek tömbje
      */
-    private function createProductItems(): array
+    private function createProductItems( string $countryCode = null): array
     {
         $items = $this->order->get_items();
         $productItems = [];
@@ -649,31 +662,17 @@ class Billingo_Document_Generator
                 }
             }
             Billingo_Logger::info('item tax class: ' . $itemData['tax_class']);
+            $unitPriceorig = ($item->get_subtotal() + $item->get_subtotal_tax()) / $item->get_quantity();
+            $checkosszeg = ($item->get_total() + $item->get_total_tax()) / $item->get_quantity();
 
-            $vatObject = $this->getCalculatedDateForItem('vat', $itemData);
-
-            $vatRate = ($vatObject && $vatObject->value) ? $this->getVatRateFromCode($vatObject->value) : 0;
-
-            $unitPriceorig = $isBundleItem
-                ? $item->get_subtotal() / $item->get_quantity()
-                : ($this->getRegularPriceFromItemMeta($item, $product) ?: $item->get_subtotal() / $item->get_quantity());
-
-            $checkosszeg = ($item->get_subtotal() + $item->get_subtotal_tax()) / $item->get_quantity();
-
-            if((int)$unitPriceorig != (int)$checkosszeg){
-                $unitPriceorig = $item->get_subtotal() / $item->get_quantity() * (1 + $vatRate / 100);
-
-            }
-
-            // Dokumentum elem létrehozása
             try {
                 $originalItem = new DocumentProductData([
                     'name' => $itemData['name'] ?? 'Termék',
                     'quantity' => $itemData['quantity'] ?? 1,
-                    'unit_price' => $unitPriceorig,
+                    'unit_price' => !wcFlexibleIsTrue(get_option('wc_billingo_decimalsoff'))? (int) round($unitPriceorig): $unitPriceorig,
                     'unit_price_type' => $this->getCalculatedDateForItem('unit_price_type')->value,
                     'unit' => $this->getCalculatedDateForItem('unit'),
-                    'vat' => $this->getCalculatedDateForItem('vat', $itemData)->value ?? '0%',
+                    'vat' => $this->getCalculatedDateForItem('vat', $itemData, $countryCode)?->value ?? '0%',
                     'comment' => $this->getCalculatedDateForItem('comment', $itemData),
                     'entitlement' => $this->getCalculatedDateForItem('entitlement', $itemData)?->value,
                     'sku' => !empty($this->getProductSku($itemData)) ? $this->getProductSku($itemData) : null,
@@ -689,6 +688,34 @@ class Billingo_Document_Generator
                 Billingo_Logger::error('Hiba a dokumentum elem létrehozásakor: ' . $e->getMessage());
                 // Folytatjuk a következő elemmel
                 continue;
+            }
+
+            if($unitPriceorig != $checkosszeg){
+
+                $dicountprice = $unitPriceorig-$checkosszeg;
+                try {
+                    $originalItemDiscount = new DocumentProductData([
+                        'name' => $itemData['name'] . ' - kedvezmény' ?? 'Termék',
+                        'quantity' => $itemData['quantity'] ?? 1,
+                        'unit_price' => -(!wcFlexibleIsTrue(get_option('wc_billingo_decimalsoff'))? (int) round($dicountprice): $dicountprice),
+                        'unit_price_type' => $this->getCalculatedDateForItem('unit_price_type')->value,
+                        'unit' => $this->getCalculatedDateForItem('unit'),
+                        'vat' => $this->getCalculatedDateForItem('vat', $itemData, $countryCode)?->value ?? '0%',
+                        'comment' => $this->getCalculatedDateForItem('comment', $itemData),
+                        'entitlement' => $this->getCalculatedDateForItem('entitlement', $itemData)?->value,
+
+                    ]);
+                    // áfa felülírás ha kell
+                    if(wcFlexibleIsTrue(get_option('wc_billingo_tax_override'))){
+                        $originalItemDiscount = $this->overrideTax($originalItemDiscount);
+                    }
+
+                    $productItems[] = $originalItemDiscount;
+                } catch (\Exception $e) {
+                    Billingo_Logger::error('Hiba a dokumentum elem létrehozásakor: ' . $e->getMessage());
+                    // Folytatjuk a következő elemmel
+                    continue;
+                }
             }
 
             // Alkalmazzuk a tételenkénti kedvezményeket, ha engedélyezve van
@@ -719,6 +746,7 @@ class Billingo_Document_Generator
 
             foreach ($shippingMethods as $shippingMethod) {
                 $shippingMethodTitle = $shippingMethod->get_method_title();
+
                 $shippingTotal = floatval($shippingMethod->get_total());
 
                 $shippingVatCalculated = $shippingTotal + $shippingMethod->get_total_tax();
@@ -734,7 +762,8 @@ class Billingo_Document_Generator
                             ? $shippingMethodTitle
                             : __('Szállítás', 'billingo'),
                         'quantity' => 1,
-                        'unit_price' => $shippingVatCalculated,
+                        'unit_price' => !wcFlexibleIsTrue(get_option('wc_billingo_decimalsoff'))
+                            ? (int) round($shippingVatCalculated):$shippingVatCalculated,
                         'unit_price_type' => UnitPriceTypeEnum::GROSS->value,
                         'unit' => $this->getCalculatedDateForItem('unit'),
                         'vat' => $this->getShippingVatCode($shippingMethod)->value,
@@ -749,6 +778,7 @@ class Billingo_Document_Generator
                     Billingo_Logger::info('Szállítási tétel hozzáadva: ' . $shippingMethodTitle . ' (' . $shippingTotal . ' ' . $this->order->get_currency() . ')');
                 }
             }
+
         }elseif (wcFlexibleIsTrue(get_option('wc_billingo_always_add_carrier')) && !$hasShippingCost && !empty($shippingMethods)) {
             // Ha a szállítási költség nulla, de a "mindig látszódjon" beállítás aktív, akkor 0 összegű tételt adunk hozzá
             Billingo_Logger::info('Nincs szállítási költség, de a "Szállító mindig látszódjon" beállítás aktív - 0 összegű tétel hozzáadása');
@@ -818,7 +848,8 @@ class Billingo_Document_Generator
                             ? $feeName
                             : __('Tranzakciós költség', 'billingo'),
                         'quantity' => 1,
-                        'unit_price' => $grossAmount,
+                        'unit_price' => !wcFlexibleIsTrue(get_option('wc_billingo_decimalsoff'))
+                            ? (int) round($grossAmount) : $grossAmount,
                         'unit_price_type' => UnitPriceTypeEnum::GROSS->value,
                         'unit' => $this->getCalculatedDateForItem('unit'),
                         'vat' => $usedvatcode,
@@ -940,12 +971,32 @@ class Billingo_Document_Generator
         return !empty($vatRate) || $vatRate == 0 ? floatval($vatRate) : $defaultRate;
     }
 
-    private function getCalculatedDateForItem(string $dataName, array $item = null): mixed
+    private function getCalculatedDateForItem(string $dataName, array $item = null, string $countryCode = null): mixed
     {
         if ($dataName == 'vat' && !is_null($item)) {
             $taxRate = WC_Tax::get_rates_for_tax_class($item['tax_class']);
-            $vat = array_shift($taxRate)->tax_rate;
+            $count = count($taxRate);
+            if ($count === 1) {
+                $vat = array_shift($taxRate)->tax_rate;
+            }else{
+                foreach ($taxRate as $rate) {
+                    if (
+                        isset($rate->tax_rate_country, $rate->tax_rate)
+                        && $rate->tax_rate_country === $countryCode
+                    ) {
+                        $vat = $rate->tax_rate;
+                        break;
+                    }
+                }
 
+                // Ha nem találtunk ország szerinti áfát → fallback: első elem
+                if ($vat === null) {
+                    $first = reset($taxRate); // nem módosítja a tömböt
+                    if ($first && isset($first->tax_rate)) {
+                        $vat = $first->tax_rate;
+                    }
+                }
+            }
             if($item['tax_class'] == 'zero-rate'){
                 $vat = 0;
             }
@@ -975,7 +1026,7 @@ class Billingo_Document_Generator
         return (new WC_Product($item['product_id']))->get_sku();
     }
 
-    private function getNote(): string
+    private function getNote($order ): string
     {
         $defaultNoteOptionKey = get_option('wc_billingo_note');
         $defaultNote = '';
@@ -1001,6 +1052,37 @@ class Billingo_Document_Generator
         if (wcFlexibleIsTrue(get_option('wc_billingo_note_barion'))
             && $barrionId) {
             $note .= "\n" . __('Barion tranzakció azonosító', 'billingo') . ': ' . sanitize_text_field($barrionId);
+        }
+
+        if (
+            function_exists('wcFlexibleIsTrue')
+            && wcFlexibleIsTrue( get_option('wc_billingo_shippingcomment') )
+            && $order instanceof WC_Order
+        ) {
+            // Szállítási adatok biztonságosan
+            $shipping = $order->get_address('shipping');
+
+            if ( is_array($shipping) && ! empty( array_filter($shipping) ) ) {
+
+                $postcode = (string) $order->get_shipping_postcode();
+                $city     = (string) $order->get_shipping_city();
+                $addr1    = (string) $order->get_shipping_address_1();
+                $addr2    = (string) $order->get_shipping_address_2();
+
+                // Összerakjuk a címet, kiszűrve az üres részeket
+                $parts = array_filter([
+                    $postcode,
+                    $city,
+                    $addr1,
+                    $addr2,
+                ]);
+
+                $shipping_line = trim( preg_replace( '/\s+/', ' ', implode(' ', $parts) ) );
+
+                if ( $shipping_line !== '' ) {
+                    $note .= "\n" . __('Szállítási cím', 'billingo') . ': ' . sanitize_text_field( $shipping_line );
+                }
+            }
         }
 
         return $note;
@@ -1267,6 +1349,57 @@ class Billingo_Document_Generator
         Billingo_Logger::warning('getCurrencyRate FAILED - no API rate available and no manual rate set, falling back to 1.0');
         return 1.0;
     }
+
+    function get_order_language(WC_Order $order) : string
+    {
+        // --- ENUM lista ---
+        $validEnums = array_column(LanguageEnum::cases(), 'value');
+
+        // --- Admin default (mindig legyen érték) ---
+        $default = get_option('wc_billingo_invoice_lang') ?: LanguageEnum::HU->value;
+        $default = strtolower(substr($default, 0, 2));
+
+        // Admin default is valid? Ha nem → HU fallback
+        if (!in_array($default, $validEnums, true)) {
+            $default = LanguageEnum::HU->value;
+        }
+
+        // Order type check
+        if (!$order instanceof WC_Order) {
+            return $default;
+        }
+
+        // WPML alapú nyelvhasználat engedélyezve?
+        if (wcFlexibleIsTrue(get_option('wc_billingo_invoice_lang_wpml'))) {
+
+            // Források sorrendben
+            $possibleSources = [
+                $order->get_meta('wpml_order_language', true),
+                $order->get_meta('wpml_language', true),
+                function_exists('pll_get_post_language')
+                    ? pll_get_post_language($order->get_id(), 'slug')
+                    : null,
+                $order->get_meta('trp_language', true),
+                substr((string)$order->get_meta('_locale', true), 0, 2),
+            ];
+
+            foreach ($possibleSources as $lang) {
+                if (is_string($lang) && $lang !== '') {
+
+                    $lang = strtolower(substr($lang, 0, 2));
+
+                    // ENUM validáció – CSAK ezeket fogadjuk el
+                    if (in_array($lang, $validEnums, true)) {
+                        return $lang;
+                    }
+                }
+            }
+        }
+
+        // Ha nincs érvényes találat → admin default
+        return $default;
+    }
+
 
 }
 

@@ -49,7 +49,7 @@ class DocumentBlockApi extends BillingoApi
 
         if ($documentBlockSchema->hasError()) {
 
-            throw new BadContentException($documentBlockSchema->getSelfTest());
+            throw new BadContentException(esc_html( $documentBlockSchema->getSelfTest()));
         }
 
         $this->apiContext

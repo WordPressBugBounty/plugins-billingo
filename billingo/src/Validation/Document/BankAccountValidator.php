@@ -10,7 +10,7 @@ class BankAccountValidator extends  Validator
     {
         return [
             'id' => ['optional', 'integer'],
-            'name' => ['required', 'string'],
+            'name' => ['optional', 'string'],
             'account_number' => ['required', 'string'],
             'account_number_iban' => ['optional', 'string'],
             'swift' => ['optional', 'string'],

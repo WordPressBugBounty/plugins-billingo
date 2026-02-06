@@ -63,7 +63,7 @@ class WC_Billingo_Admin_Controller
         wp_nonce_field('woocommerce-settings');
 
         $current_subsection = $this->get_current_subsection();
-        
+
         return [
             self::SUBTAB_API => [
                 'name' => __('API', 'billingo'),
@@ -98,7 +98,7 @@ class WC_Billingo_Admin_Controller
         ];
     }
 
-   
+
 
     /**
      * Returns the current submenu
@@ -118,7 +118,7 @@ class WC_Billingo_Admin_Controller
                 return 'error';
             }
         }
-        
+
         return isset($_GET['subsection']) ? sanitize_text_field(wp_unslash($_GET['subsection'])) : self::SUBTAB_API;
     }
 
@@ -132,26 +132,26 @@ class WC_Billingo_Admin_Controller
             echo '<div class="wrap woocommerce">';
             echo '<form method="post" id="mainform" action="" enctype="multipart/form-data">';
             $current_subsection = $this->get_current_subsection();
-            
+
             // show the submenu
             $submenu_html = view('Admin._sub_navigation', [
                 'menu_items' => $this->get_sub_tabs()
-                
+
             ]);
-            
+
             echo $submenu_html;
-            
+
             // show content based on subsection
             $this->render_content('', $current_subsection);
-            
+
             echo '</form>';
             echo '</div>';
         } catch (\Exception $e) {
             // error message
-            echo '<div class="error notice"><p>' . 
-                 esc_html__('Hiba történt a beállítások megjelenítésekor: ', 'billingo') . esc_html($e->getMessage()) . 
-                 '</p></div>';
-            
+            echo '<div class="error notice"><p>' .
+                esc_html__('Hiba történt a beállítások megjelenítésekor: ', 'billingo') . esc_html($e->getMessage()) .
+                '</p></div>';
+
         }
     }
 
@@ -169,36 +169,36 @@ class WC_Billingo_Admin_Controller
                 case self::SUBTAB_API:
                     $this->render_api_settings();
                     break;
-                
+
                 case self::SUBTAB_INVOICE:
                     $this->render_invoice_settings();
                     break;
-                
+
                 case self::SUBTAB_VAT:
                     $this->render_vat_settings();
                     break;
-                
+
                 case self::SUBTAB_EMAIL:
                     $this->render_email_settings();
                     break;
-                
+
                 case self::SUBTAB_PAYMENT:
                     $this->render_payment_settings();
                     break;
-                
+
                 case self::SUBTAB_SUPPORT:
                     $this->render_support();
                     break;
-                
+
                 default:
                     // default content, if no specific view
                     $this->render_api_settings();
             }
         } catch (\Exception $e) {
             // error message
-            echo '<div class="error notice"><p>' . 
-                 esc_html__('Hiba történt: ', 'billingo') . esc_html($e->getMessage()) . 
-                 '</p></div>';
+            echo '<div class="error notice"><p>' .
+                esc_html__('Hiba történt: ', 'billingo') . esc_html($e->getMessage()) .
+                '</p></div>';
         }
     }
 
@@ -207,11 +207,11 @@ class WC_Billingo_Admin_Controller
      */
     private function render_api_settings(): void
     {
-        
+
         $error_message = '';
         $document_blocks =  self::get_formatted_document_blocks($this->client);
-       
-      
+
+
 
         $status = $this->connection_tester->testConnection();
         $message = '';
@@ -219,20 +219,20 @@ class WC_Billingo_Admin_Controller
             case 'not_configured':
                 $message = 'Nincs API kapcsolat beállítva';
                 break;
-                
+
             case 'error':
                 $message = 'Az API kapcsolat hiba miatt nem jött létre';
                 break;
-                
+
             case 'success':
                 $message = 'Az API kapcsolat sikeresen létrejött';
                 break;
         }
-            
-        
+
+
         // CSRF 
         wp_nonce_field('woocommerce-settings');
-        
+
         // API settings show
         $html = view('Admin.subtabs.api_settings', [
             'api_key' => get_option('wc_billingo_api_key', ''),
@@ -242,7 +242,7 @@ class WC_Billingo_Admin_Controller
             'billingo_api_connection_status' => $status,
             'billingo_api_connection_message' => $message,
         ]);
-        
+
         echo $html;
     }
 
@@ -255,22 +255,22 @@ class WC_Billingo_Admin_Controller
 
         $data_eraser_code = get_wp_translated_enum(DeleteCodeEnum::class, true);
         $bank_accounts = $this->get_formatted_bank_accounts();
-        
+
         // Get available payment methods
         $bpms = get_wp_translated_enum(PaymentMethodEnum::class, true);
-        
+
         // Get available languages
         $langs = get_wp_translated_enum(LanguageEnum::class, true);
-        
+
         // Get rounding options
         $roundings = get_wp_translated_enum(RoundEnum::class, true);
-        
+
         // Get order statuses
         $order_statuses = wc_get_order_statuses();
-        
+
         // CSRF
         wp_nonce_field('woocommerce-settings');
-        
+
         $html = view('Admin.subtabs.invoice_settings', [
             'bank_accounts' => $bank_accounts,
             'bank_account_hu' => get_option('wc_billingo_bank_account_huf', ''),
@@ -301,18 +301,21 @@ class WC_Billingo_Admin_Controller
             'vat_number_form' => get_option('wc_billingo_vat_number_form', '0'),
             'vat_number_form_checkbox_custom' => get_option('wc_billingo_vat_number_form_checkbox_custom', '0'),
             'discount_is_unique_item' => get_option('wc_billingo_discount_is_unique_item', '0'),
+            'decimalsoff'=> get_option('wc_billingo_decimalsoff', '0'),
+            'shippingcomment'=> get_option('wc_billingo_shippingcomment', '0'),
+            'testmode' => get_option('wc_billingo_test', '0'),
             // Select options
             'auto_storno' => get_option('wc_billingo_auto_storno', 'no'),
             'payment_request_auto' => get_option('wc_billingo_payment_request_auto', 'no'),
             'auto' => get_option('wc_billingo_auto', 'no'),
-            
+
             // Available options
             'bpms' => $bpms,
             'langs' => $langs,
             'roundings' => $roundings,
             'order_statuses' => $order_statuses
         ]);
-        
+
         echo $html;
     }
 
@@ -323,23 +326,23 @@ class WC_Billingo_Admin_Controller
     {
         $taxes = getEnumValues(VatEnum::class);
         $onlyTaxes = [];
-        
+
         array_walk($taxes, function (&$tax) use (&$onlyTaxes) {
             if (strpos($tax, '%')) {
                 $onlyTaxes[$tax] = $tax;
             }
         });
-        
+
         $firstEntitlement = ['' => ''];
         $entitlements = $this->get_indexed_array_from_enum(EntitlementEnum::class);
         $entitlements = $firstEntitlement + $entitlements;
-        
+
         // Get tax_override_choice
         $tax_override_choice = (int)get_option('wc_billingo_tax_override_choice', 1);
-        
+
         // CSRF
         wp_nonce_field('woocommerce-settings');
-        
+
         $html = view('Admin.subtabs.tax_settings', [
             'tax_override' => (int)get_option('wc_billingo_tax_override', 0),
             'tax_override_choice' => $tax_override_choice,
@@ -352,7 +355,7 @@ class WC_Billingo_Admin_Controller
             'entitlements' => $entitlements,
             'taxes' => $onlyTaxes
         ]);
-        
+
         echo $html;
     }
 
@@ -367,7 +370,7 @@ class WC_Billingo_Admin_Controller
             'attach' => __('Csatolás a WooCommerce E-mailhez', 'billingo'),
             'both' => __('Mindkét előző opció', 'billingo'),
         ];
-        
+
         // CSRF
         wp_nonce_field('woocommerce-settings');
 
@@ -383,7 +386,7 @@ class WC_Billingo_Admin_Controller
             'text_invoice' => get_option('wc_billingo_email_woo_text', __('Számlája elkészült, melyet az alábbi linken tud letölteni.', 'billingo')),
             'text_storno' => get_option('wc_billingo_storno_email_woo_text', __('Storno számlája elkészült, melyet az alábbi linken tud letölteni.', 'billingo'))
         ]);
-        
+
         echo $html;
     }
 
@@ -392,26 +395,26 @@ class WC_Billingo_Admin_Controller
      */
     private function render_payment_settings(): void
     {
-        
+
 
         $payment_methods = [];
         $billingo_payment_methods = get_wp_translated_enum(PaymentMethodEnum::class);
 
-            foreach (WC_Billingo_Admin_Helper::get_available_payment_methods() as $key => $name) {
-                $payment_methods[] = [
-                    'key' => $key,
-                    'name' => $name,
-                    'bpm' => get_option('wc_billingo_payment_method_' . $key),
-                    'due' => (int)get_option('wc_billingo_paymentdue_' . $key, 0),
-                    'pay' => (int)get_option('wc_billingo_mark_as_paid_' . $key, 0),
-                    'pay2' => (int)get_option('wc_billingo_mark_as_paid2_' . $key, 0),
-                    'pro' => (int)get_option('wc_billingo_proforma_' . $key, 0),
-                    'doff' => (int)get_option('wc_billingo_doff_' . $key, 0),
-                ];
-            }  
-        
-        
-        
+        foreach (WC_Billingo_Admin_Helper::get_available_payment_methods() as $key => $name) {
+            $payment_methods[] = [
+                'key' => $key,
+                'name' => $name,
+                'bpm' => get_option('wc_billingo_payment_method_' . $key),
+                'due' => (int)get_option('wc_billingo_paymentdue_' . $key, 0),
+                'pay' => (int)get_option('wc_billingo_mark_as_paid_' . $key, 0),
+                'pay2' => (int)get_option('wc_billingo_mark_as_paid2_' . $key, 0),
+                'pro' => (int)get_option('wc_billingo_proforma_' . $key, 0),
+                'doff' => (int)get_option('wc_billingo_doff_' . $key, 0),
+            ];
+        }
+
+
+
         // CSRF
         wp_nonce_field('woocommerce-settings');
 
@@ -420,7 +423,7 @@ class WC_Billingo_Admin_Controller
             'billingo_payment_methods' => $billingo_payment_methods,
             'proforma_auto' => get_option('wc_billingo_payment_request_auto', 'no')
         ]);
-        
+
         echo $html;
     }
 
@@ -444,9 +447,9 @@ class WC_Billingo_Admin_Controller
             'Server Info' => $server_info,
             'Memory Limit' => ini_get('memory_limit'),
         ];
-        
+
         $debug_code = json_encode($debug_info, JSON_PRETTY_PRINT);
-        
+
         // logs
         $log_path = BILLINGO__PLUGIN_DIR . 'log/';
 
@@ -472,7 +475,7 @@ class WC_Billingo_Admin_Controller
             'debug_code' => $debug_code,
             'log_files' => $combined_logs,
         ]);
-        
+
         echo $html;
     }
 
@@ -486,14 +489,14 @@ class WC_Billingo_Admin_Controller
         if (!function_exists('get_plugin_data')) {
             require_once(ABSPATH . 'wp-admin/includes/plugin.php');
         }
-        
+
         $plugin_file = BILLINGO__PLUGIN_DIR . 'index.php';
-        
+
         if (file_exists($plugin_file)) {
             $plugin_data = get_plugin_data($plugin_file);
             return $plugin_data['Version'] ?? 'Unknown';
         }
-        
+
         return 'Unknown';
     }
 
@@ -555,7 +558,7 @@ class WC_Billingo_Admin_Controller
                     $document_blocks[$document_block->id] = $document_block->name . " ({$document_block->prefix})";
                 });
         }
-        
+
         $document_blocks[''] = __('Alapértelmezett', 'billingo');
 
         return $document_blocks;
@@ -563,67 +566,73 @@ class WC_Billingo_Admin_Controller
 
     /**
      * Save settings
-     * 
+     *
      * @param string|null $subsection The current subsection (if null, it will be read from the URL)
      */
     public function process_settings_save(?string $subsection = null): void
     {
-        
-        // CSRF check
+        // 0) Jogosultság-ellenőrzés – Admin + Shop Manager (WooCommerce capability)
+        if ( ! current_user_can('manage_woocommerce') ) {
+            return;
+        }
+
+        // 1) CSRF check
         if (
-            !isset($_POST['_wpnonce']) ||
-            !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'woocommerce-settings')
-            )  {
+            ! isset($_POST['_wpnonce']) ||
+            ! wp_verify_nonce(
+                sanitize_text_field(wp_unslash($_POST['_wpnonce'])),
+                'woocommerce-settings'
+            )
+        ) {
             $this->CSRF_check_failiure_alert();
             return;
         }
-        // Only process if POST request is received
-        if(isset($_SERVER['REQUEST_METHOD'])) {
+
+        // 2) Csak POST-ot dolgozzunk fel
+        if ( isset($_SERVER['REQUEST_METHOD']) ) {
             if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST)) {
                 return;
             }
         } else {
             return;
         }
-        
-        // get subsection from hidden field
-        if (isset($_POST['subsection']) && !empty($_POST['subsection'])) {
+
+        // 3) Subsection meghatározása
+        if ( isset($_POST['subsection']) && ! empty($_POST['subsection']) ) {
             $subsection = sanitize_text_field(wp_unslash($_POST['subsection']));
-        }
-        // if no subsection is set, get it from the URL
-        elseif (is_null($subsection)) {
+        } elseif ( is_null($subsection) ) {
             $subsection = $this->get_current_subsection();
         }
-        
-        // save settings based on the current subsection
+
+        // 4) Mentés az alfül alapján
         switch ($subsection) {
             case self::SUBTAB_API:
             case 'api':
                 $this->save_api_settings();
                 break;
-                
+
             case self::SUBTAB_INVOICE:
             case 'invoice':
                 $this->save_invoice_settings();
                 break;
-                
+
             case self::SUBTAB_VAT:
             case 'vat':
                 $this->save_vat_settings();
                 break;
-                
+
             case self::SUBTAB_EMAIL:
             case 'email':
                 $this->save_email_settings();
                 break;
-                
+
             case self::SUBTAB_PAYMENT:
             case 'payment':
                 $this->save_payment_settings();
                 break;
         }
-        
     }
+
 
 
     private function CSRF_check_failiure_alert(): void
@@ -632,48 +641,48 @@ class WC_Billingo_Admin_Controller
             echo '<div class="error notice"><p>' . esc_html__('Biztonsági ellenőrzés sikertelen. Kérjük próbálja újra.', 'billingo') . '</p></div>';
         });
     }
-    
+
     /**
      * API settings save
      */
     private function save_api_settings(): void
     {
 
-             // CSRF check
-             if (
-                !isset($_POST['_wpnonce']) ||
-                !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'woocommerce-settings')
-            )  {
-                $this->CSRF_check_failiure_alert();
-                return;
-            }
+        // CSRF check
+        if (
+            !isset($_POST['_wpnonce']) ||
+            !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'woocommerce-settings')
+        )  {
+            $this->CSRF_check_failiure_alert();
+            return;
+        }
 
         if (isset($_POST['wc_billingo_api_key'])) {
             $valueApiKey = sanitize_text_field(wp_unslash($_POST['wc_billingo_api_key']));
             update_option('wc_billingo_api_key', $valueApiKey);
         }
-        
+
         if (isset($_POST['wc_billingo_invoice_block'])) {
             $valueInvoiceBlock = sanitize_text_field(wp_unslash($_POST['wc_billingo_invoice_block']));
             update_option('wc_billingo_invoice_block', $valueInvoiceBlock);
         }
     }
-    
+
     /**
      * Invoice settings save
      */
     private function save_invoice_settings(): void
     {
 
-             // CSRF check
-             if (
-                !isset($_POST['_wpnonce']) ||
-                !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'woocommerce-settings')
-            )  {
-                $this->CSRF_check_failiure_alert();
-                return;
-            }
-     
+        // CSRF check
+        if (
+            !isset($_POST['_wpnonce']) ||
+            !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'woocommerce-settings')
+        )  {
+            $this->CSRF_check_failiure_alert();
+            return;
+        }
+
         // text fields
         $text_fields = [
             'wc_billingo_bank_account_huf',
@@ -693,14 +702,14 @@ class WC_Billingo_Admin_Controller
             'wc_billingo_vat_number_form_custom',
             'wc_billingo_vat_number_notice'
         ];
-        
+
         foreach ($text_fields as $field) {
             if (isset($_POST[$field])) {
                 $value = sanitize_text_field(wp_unslash($_POST[$field]));
                 update_option($field, $value);
             }
         }
-        
+
         // checkbox fields
         $checkbox_fields = [
             'wc_billingo_disable_proforma_invoicing',
@@ -716,8 +725,11 @@ class WC_Billingo_Admin_Controller
             'wc_billingo_vat_number_form',
             'wc_billingo_vat_number_form_checkbox_custom',
             'wc_billingo_discount_is_unique_item',
+            'wc_billingo_decimalsoff',
+            'wc_billingo_shippingcomment',
+            'wc_billingo_test',
         ];
-        
+
         foreach ($checkbox_fields as $field) {
             if (isset($_POST[$field])) {
                 update_option($field, 1);
@@ -726,7 +738,7 @@ class WC_Billingo_Admin_Controller
             }
         }
     }
-    
+
     /**
      * Vat settings save
      */
@@ -745,31 +757,31 @@ class WC_Billingo_Admin_Controller
         if (isset($_POST['wc_billingo_tax_override'])) {
             update_option('wc_billingo_tax_override', (int)$_POST['wc_billingo_tax_override']);
         }
-        
+
         if (isset($_POST['wc_billingo_tax_override_choice'])) {
             $choice_value = (int)$_POST['wc_billingo_tax_override_choice'];
             update_option('wc_billingo_tax_override_choice', $choice_value);
         }
-        
+
         $text_fields = [
             'wc_billingo_tax_override_entitlements',
             'wc_billingo_tax_override_value',
             'wc_billingo_tax_override_zero_entitlements'
         ];
-        
+
         foreach ($text_fields as $field) {
             if (isset($_POST[$field])) {
                 $value = sanitize_text_field(wp_unslash($_POST[$field]));
                 update_option($field, $value);
             }
         }
-        
+
         $checkbox_fields = [
             'wc_billingo_tax_override_include_carrier',
             'wc_billingo_always_add_carrier',
             'wc_billingo_tax_shipping_pirce_type_is_net'
         ];
-        
+
         foreach ($checkbox_fields as $field) {
             if (isset($_POST[$field])) {
                 update_option($field, 1);
@@ -778,21 +790,21 @@ class WC_Billingo_Admin_Controller
             }
         }
     }
-    
+
     /**
      * Email settings save
      */
     private function save_email_settings(): void
     {
 
-            // CSRF check
-            if (
-                !isset($_POST['_wpnonce']) ||
-                !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'woocommerce-settings')
-            )  {
-                $this->CSRF_check_failiure_alert();
-                return;
-            }
+        // CSRF check
+        if (
+            !isset($_POST['_wpnonce']) ||
+            !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'woocommerce-settings')
+        )  {
+            $this->CSRF_check_failiure_alert();
+            return;
+        }
 
         if (isset($_POST['billingo_email_settings']) && is_array($_POST['billingo_email_settings'])) {
             //maradhat Lead azt mondta
@@ -802,7 +814,7 @@ class WC_Billingo_Admin_Controller
             }
         }
     }
-    
+
     /**
      * Payment settings save
      */

@@ -1,11 +1,12 @@
-=== Official Integration for Billingo ===
+=== Billingo Official for WooCommerce ===
 Tags: billingo.hu, billingo, woocommerce, szamlazas, magyar
-Requires at least: 6.4
-Tested up to: 6.8.1
+Requires at least: 6.8
+Tested up to: 6.8
 Requires PHP: 8.1
-Stable tag: 4.2.5
+Stable tag: 4.2.9
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
+
 
 Hivatalos Billingo összeköttetés WooCommerce-hez.
 
@@ -55,6 +56,26 @@ Pár kiemelt pont a működéssel kapcsolatosan:
 3. Beállíátsok elmentése után lehetőség van a fizetési módok összepárosítására a billingo rendszerében megfelelővel
 
 == Changelog ==
+= 4.2.9 =
+* Vendor_id usage logic has changed.
+
+= 4.2.8
+* New feature add shipping address to documents comment field
+* Create documents on order language update
+
+= 4.2.7
+* Tax class modification
+* Design update
+* Logo bugfix
+
+= 4.2.6
+* Item discount update
+* Add new settings Decimals
+* Add new feature Test mode (address valitdation turn off in the test mode)
+* Email notification fix
+* NAV warning check update
+* Label fix for payment depend invoice turn off
+* Already cancelled invoice management
 
 = 4.2.5
 * Payment depend invoice turn off

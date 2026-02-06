@@ -5,6 +5,7 @@ namespace App\Billingo\WooCommerce\Service;
 use App\Billingo\WooCommerce\Controllers\Billingo_Controller;
 use App\Billingo\WooCommerce\Repositories\Billingo_Repositroy;
 use WC_Order;
+use Exception;
 
 class Invoice_Generation_Container
 {
@@ -18,16 +19,29 @@ class Invoice_Generation_Container
 
     /**
      * @param int $orderId
+     * @throws Exception
      */
     public function __construct(int $orderId)
     {
-        $this->order = wc_get_order($orderId);
-        $this->status = $this->order->get_status();
-        $this->activationStatus = str_replace('wc-', '', get_option('wc_billingo_auto_state'));
-        $this->autoStornoStatus = str_replace('wc-', '', get_option('wc_billingo_auto_storno'));
+        // 1) Rendelés lekérdezése lokálisan
+        $order = wc_get_order($orderId);
+
+        // 2) Ellenőrzés – itt még NINCS property-nek adva
+        if ( ! ($order instanceof WC_Order) ) {
+            throw new Exception('A rendelés nem található vagy érvénytelen.');
+        }
+
+        // 3) Innentől biztos, hogy WC_Order, most már mehet a readonly property-be
+        $this->order = $order;
+
+        // 4) További readonly property-k inicializálása
+        $this->status           = $this->order->get_status();
+        $this->activationStatus = str_replace('wc-', '', (string) get_option('wc_billingo_auto_state'));
+        $this->autoStornoStatus = str_replace('wc-', '', (string) get_option('wc_billingo_auto_storno'));
+
         $this->documentGenerator = new Billingo_Document_Generator($orderId);
-        $this->controller = new Billingo_Controller($orderId);
-        $this->repositroy = new Billingo_Repositroy();
+        $this->controller        = new Billingo_Controller($orderId);
+        $this->repositroy        = new Billingo_Repositroy();
     }
 
     public function getOrder(): WC_Order

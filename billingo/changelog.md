@@ -1,5 +1,27 @@
 # Changelog
--**4.2.5** - 2025.08.12
+-**4.2.9** - 2025.12.18
+* Vendor_id usage logic has changed.
+
+-**4.2.8** - 2025.12.15
+* New feature add shipping address to documents comment field
+* Create documents on order language update
+
+-**4.2.7** - 2025.11.17
+* Tax class modification
+* Design update
+* Logo bug fix
+
+-**4.2.6** - 2025.11.10
+* Item discount update
+* Add new settings Decimals
+* Add new feature Test mode (address valitdation turn off in the test mode)
+* Email notification fix
+* NAV warning check update
+* Label fix for payment depend invoice turn off
+* Already cancelled invoice management
+
+-**4.2.5** - 2025.09.16
+- HuCommerce detect fix
 - Payment depend invoice turn off
 
 -**4.2.4** - 2025.07.16

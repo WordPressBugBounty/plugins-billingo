@@ -479,6 +479,7 @@
 <div class="billingo-metabox-holder">
     <div class="billingo-postbox">
         <h2 class="billingo-settings-title-api">{{ 'API Beállítások'|esc_html_translate }}</h2>
+        <p style="color: red; font-weight: 700;">{{ 'A plugin 3.0+ verzióról történő frissítése után minden beállítás újra szükségessé válik, ezek nélkül a számlázás nem indul el úgy, ahogy számodra megfelelő lenne.'|esc_html_translate }} <br> {{ 'Kérjük, menj végig a teljes beállítási folyamaton a plugin beállításának összes fülén.'|esc_html_translate }}</br></p>
         <div class="inside">
             <div class="row">
                 <div class="column" style="max-width: 620px; min-width: 450px;">
@@ -489,18 +490,17 @@
                                     <label class="billingo-field-name" for="wc_billingo_api_key">{{ 'v3 API Kulcs'|esc_html_translate }}</label>
                                 </th>
                                 <td class="forminp forminp-text">
+
                                     <input 
                                         name="wc_billingo_api_key" 
                                         id="wc_billingo_api_key" 
                                         type="text" 
-                                        style="min-width: 300px;"
+                                        style="min-width: 300px;" 
                                         class="regular-text" 
                                         value="{{ api_key|esc_attr }}"
                                     />
                                     <p class="billingo-field-description-italic">{{ 'Az API kulcs generálását a Billingo admin felületéről éred el.'|esc_html_translate }}</p>
                                     <p style="color: red; font-weight: 700;">{{ 'Az API-kulcs megadása önmagában még nem elegendő. '|esc_html_translate }}</p>
-                                    <p style="color: red; font-weight: 700;">{{ 'A plugin frissítése után minden beállítás újra szükségessé válik, ezek nélkül a számlázás nem indul el úgy, ahogy számodra megfelelő lenne.'|esc_html_translate }}
-                                    <p style="color: red; font-weight: 700;">{{ 'Kérjük, menj végig a teljes beállítási folyamaton a plugin oldalán.'|esc_html_translate }}</p>
                                     <a href="{{esc_url('https://support.billingo.hu/content/951320702#mi-az-api-es-hol-erem-el-ezeket-a-kulcsokat')}}" target="_blank"><p class="billingo-field-description-italic">{{ 'Segítség az API kulcs létrehozásában.'|esc_html_translate }}</p></a>
                                 </td>
                             </tr>

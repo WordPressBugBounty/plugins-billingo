@@ -73,7 +73,8 @@ class Billingo_Checkout_Fields
             require_once(ABSPATH . 'wp-admin/includes/plugin.php');
         }
 
-        return class_exists('HuCommerce') || function_exists('hucommerce_init') || is_plugin_active('hucommerce/hucommerce.php');
+        // HOTFIX: VALÓS HUCOMMERCE DETEKTÁLÁS
+        return is_plugin_active('surbma-magyar-woocommerce/surbma-magyar-woocommerce.php');
     }
 
     /**

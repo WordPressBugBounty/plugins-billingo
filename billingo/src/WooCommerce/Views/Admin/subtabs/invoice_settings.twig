@@ -956,22 +956,6 @@
                                     </fieldset>
                                 </td>
                             </tr>
-
-                            <tr valign="top">
-                                <th scope="row" class="billingo-invoice-settings-field-container">
-                                    <label class="billingo-field-name-right-column" for="wc_billingo_vat_number_form">{{ 'Adószám mező megjelenítése vásárláskor'|esc_html_translate }}</label>
-                                        <p class="billingo-field-description-italic-right-column tax-number-long-description">{{ 'A számlázási adatok alján egy új mező kerül hozzáadásra, melybe az adószámot kérjük be. Ez automatikusan rákerül a számlára is. A rendelés adataiban tároljuk, ha kézzel kell megadni (utólag) a rendeléskezelőben, akkor az egyedi mezőknél egy "adoszam" mezőt kell kitölteni. HuCommerce plugin használata esetén ne kapcsolja be, az adószám automatikusan átadásra kerül, amennyiben a vásárló megadta.'|e }}</p>
-                                </th>
-                                <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
-                                    <fieldset>
-                                        <legend class="screen-reader-text"><span>{{ 'Adószám mező megjelenítése vásárláskor'|esc_html_translate }}</span></legend>
-                                        <label for="wc_billingo_vat_number_form" class="relative inline-flex items-center cursor-pointer">
-                                            <input type="checkbox" id="wc_billingo_vat_number_form" name="wc_billingo_vat_number_form" value="1" class="sr-only peer" {% if vat_number_form=='1' %}checked="checked"{% endif %}>
-                                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                        </label>
-                                    </fieldset>
-                                </td>
-                            </tr>
                             
                             <tr valign="top">
                                 <th scope="row" class="billingo-invoice-settings-field-container">
@@ -1003,6 +987,52 @@
                                     </fieldset>
                                 </td>
                             </tr>
+
+                            <tr valign="top">
+                                <th scope="row" class="billingo-invoice-settings-field-container">
+                                    <label class="billingo-field-name-right-column" for="wc_billingo_decimalsoff">{{ 'Tizedes jagyek használata számla készítésénél' |esc_html_translate }}</label>
+                                </th>
+                                <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
+                                    <fieldset>
+                                        <legend class="screen-reader-text"><span>{{ ''|esc_html_translate }}</span></legend>
+                                        <label for="wc_billingo_decimalsoff" class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="wc_billingo_decimalsoff" name="wc_billingo_decimalsoff" value="1" class="sr-only peer" {% if decimalsoff=='1' %}checked="checked"{% endif %}>
+                                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        </label>
+                                    </fieldset>
+                                </td>
+                            </tr>
+
+                            <tr valign="top">
+                                <th scope="row" class="billingo-invoice-settings-field-container">
+                                    <label class="billingo-field-name-right-column" for="wc_billingo_shippingcomment">{{ 'Megjegyzéshez adja hozzá a szállítási címet.' |esc_html_translate }}</label>
+                                </th>
+                                <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
+                                    <fieldset>
+                                        <legend class="screen-reader-text"><span>{{ ''|esc_html_translate }}</span></legend>
+                                        <label for="wc_billingo_shippingcomment" class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="wc_billingo_shippingcomment" name="wc_billingo_shippingcomment" value="1" class="sr-only peer" {% if shippingcomment=='1' %}checked="checked"{% endif %}>
+                                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        </label>
+                                    </fieldset>
+                                </td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row" class="billingo-invoice-settings-field-container">
+                                    <label class="billingo-field-name" for="wc_billingo_test">{{ 'Teszt mód '|esc_html_translate }}</label>
+                                    <p class="billingo-field-description-italic-right-column">{{ 'NEM EGYENÉRTÉKŰ A TESZT BILLINGO FIÓK HASZNÁLATÁVAl! Cím adat ellenőrzés kikapcsolásra és kiegészítésre kerülnek a minimum adatokra random adattal!'|e }}</p>
+                                </th>
+                                <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
+                                    <fieldset>
+                                        <legend class="screen-reader-text"><span>{{ 'Teszt mód'|esc_html_translate }}</span></legend>
+                                        <label for="wc_billingo_test" class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="wc_billingo_test" name="wc_billingo_test" value="1" class="sr-only peer" {% if testmode=='1' %}checked="checked"{% endif %}>
+                                            <div class="w-11 h-6 bg-red-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-red-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+                                        </label>
+                                    </fieldset>
+                                </td>
+                            </tr>
+
                         </tbody>
                     </table>
                 </div>

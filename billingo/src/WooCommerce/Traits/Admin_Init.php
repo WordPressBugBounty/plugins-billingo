@@ -20,8 +20,8 @@ trait Admin_Init
         add_action('woocommerce_update_options_settings_tab_billingo', [self::class, 'update_settings']);
         add_action('add_meta_boxes', [self::class, 'wc_billingo_add_metabox']);
         add_filter('plugin_action_links_billingonew/index.php', [self::class, 'add_wp_settings_link']);
-    
-    
+
+
         // Add admin notices and AJAX handlers for settings notification
         add_action('admin_notices', [self::class, 'show_settings_notification']);
         add_action('wp_ajax_billingo_dismiss_notification', [self::class, 'dismiss_settings_notification']);
@@ -41,11 +41,11 @@ trait Admin_Init
         $plugin_version = $plugin_data['Version'];
 
         wp_enqueue_script(
-            'billingo_js',
-            plugins_url('/../admin/js/global.js', __FILE__),
-            ['jquery'],
-            $plugin_version,
-            true);
+                'billingo_js',
+                plugins_url('/../admin/js/global.js', __FILE__),
+                ['jquery'],
+                $plugin_version,
+                true);
 
         $wc_billingo_local = ['loading' => plugins_url('/../admin/images/ajax-loader.gif', __FILE__)];
         wp_localize_script('billingo_js', 'wc_billingo_params', $wc_billingo_local);
@@ -69,6 +69,10 @@ trait Admin_Init
      */
     public static function settings_tab(): void
     {
+        if ( ! current_user_can('manage_woocommerce') ) {
+            wp_die( esc_html__( 'You do not have permission to manage Billingo settings.', 'billingo' ) );
+        }
+
         $controller = new WC_Billingo_Admin_Controller();
         $controller->render_settings_page();
     }
@@ -78,22 +82,25 @@ trait Admin_Init
      */
     public static function update_settings(): void
     {
-        // controller handles the settings save
+        // 1) Jogosultság: Admin + Shop Manager (WooCommerce capability)
+        if ( ! current_user_can('manage_woocommerce') ) {
+            return;
+        }
+
         $controller = new WC_Billingo_Admin_Controller();
-        
-        // CSRF check
+
+        // 2) CSRF check – ezt jól csinálod, marad
         if (
-            !isset($_POST['_wpnonce']) ||
-            !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'woocommerce-settings')
+                !isset($_POST['_wpnonce']) ||
+                !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'woocommerce-settings')
         )  {
             $controller->CSRF_check_failiure_alert();
             return;
         }
 
-        // give the current subsection to the controller
-        $current_subsection = isset($_GET['subsection']) ?
-            sanitize_text_field(wp_unslash($_GET['subsection'])) :
-            'api';
+        $current_subsection = isset($_GET['subsection'])
+                ? sanitize_text_field(wp_unslash($_GET['subsection']))
+                : 'api';
 
         $controller->process_settings_save($current_subsection);
     }
@@ -101,8 +108,8 @@ trait Admin_Init
     public static function add_wp_settings_link(array $links): array
     {
         $url = esc_url(add_query_arg([
-            'page' => 'wc-settings',
-            'tab' => 'settings_tab_billingo'
+                'page' => 'wc-settings',
+                'tab' => 'settings_tab_billingo'
         ], get_admin_url() . 'admin.php'));
 
         array_push($links, '<a href="' . $url . '">' . __('Settings', 'billingo') . '</a>');
@@ -113,17 +120,17 @@ trait Admin_Init
     public static function wc_billingo_add_metabox()
     {
         $screen = wc_get_container()
-            ->get(CustomOrdersTableController::class)
-            ->custom_orders_table_usage_is_enabled()
-            ? wc_get_page_screen_id('shop-order')
-            : 'shop_order';
+                ->get(CustomOrdersTableController::class)
+                ->custom_orders_table_usage_is_enabled()
+                ? wc_get_page_screen_id('shop-order')
+                : 'shop_order';
 
         add_meta_box(
-            'custom_order_option',
-            'Billingo számla',
-            [self::class, 'render_meta_box_content'],
-            $screen,
-            'side');
+                'custom_order_option',
+                'Billingo számla',
+                [self::class, 'render_meta_box_content'],
+                $screen,
+                'side');
     }
 
     public static function render_meta_box_content($order)
@@ -141,23 +148,23 @@ trait Admin_Init
         }
 
         $repository = new Billingo_Repositroy();
-        
+
 
         $client = new BillingoClient(get_option('wc_billingo_api_key'));
 
         $isApiKeyMissing = !get_option('wc_billingo_api_key');
-        
+
         // Get the current invoice document
         $databaseRecord = $repository
-            ->where('order_id', $order_id)
-            ->where('type', TypeEnum::INVOICE->value)
-            ->first();
+                ->where('order_id', $order_id)
+                ->where('type', TypeEnum::INVOICE->value)
+                ->first();
 
         // Get all documents for this order
         $repository->withCanceled();
         $allDocuments = $repository
-            ->where('order_id', $order_id)
-            ->get();
+                ->where('order_id', $order_id)
+                ->get();
 
 
 
@@ -169,20 +176,20 @@ trait Admin_Init
         } else {
             $defaultDocumentType = 'Számla'; // vagy valami alapértelmezett szöveg
         }
-        
+
         $wcData = [
-            'note' => get_option('wc_billingo_note'),
-            'date' => wp_date('Y-m-d'),
+                'note' => get_option('wc_billingo_note'),
+                'date' => wp_date('Y-m-d'),
         ];
-        
+
         // Process the current document (for main display)
         if ($databaseRecord) {
             $link = $databaseRecord['link'];
             $response = $client->document()->getById($databaseRecord['billingo_id'])->getResponse();
             $connectionError = $response->getStatusCode() === Response::HTTP_OK;
             $document = $connectionError
-                ? $response->getData()->toArray()
-                : null;
+                    ? $response->getData()->toArray()
+                    : null;
 
             if (is_null($document)) {
                 Billingo_Logger::warning('Connection error: ' . json_encode($response->getErrors()));
@@ -193,13 +200,13 @@ trait Admin_Init
         if (!empty($allDocuments)) {
             foreach ($allDocuments as $doc) {
                 $processedDocuments[] = [
-                    'database_record' => $doc,
-                    'document_data' => $doc,
-                    'link' => $doc['link']
+                        'database_record' => $doc,
+                        'document_data' => $doc,
+                        'link' => $doc['link']
                 ];
-            
+
             }
-            
+
             // Sort by creation date (newest first)
             usort($processedDocuments, function($a, $b) {
                 $dateA = $a['database_record']['created_at'] ?? '';
@@ -211,15 +218,15 @@ trait Admin_Init
         $nonce = wp_create_nonce('wc_storno_invoice');
 
         echo view('Admin.billingo_metabox', [
-            'isApiKeyMissing' => $isApiKeyMissing,
-            'orderId' => $order_id,
-            'nonce' => $nonce,
-            'connectionError' => $connectionError ?? null,
-            'document' => $document ?? null,
-            'link' => $link ?? null,
-            'defaultDocumentType' => $defaultDocumentType,
-            'wcData' => $wcData,
-            'allDocuments' => $processedDocuments,
+                'isApiKeyMissing' => $isApiKeyMissing,
+                'orderId' => $order_id,
+                'nonce' => $nonce,
+                'connectionError' => $connectionError ?? null,
+                'document' => $document ?? null,
+                'link' => $link ?? null,
+                'defaultDocumentType' => $defaultDocumentType,
+                'wcData' => $wcData,
+                'allDocuments' => $processedDocuments,
         ]);
     }
 
@@ -251,8 +258,8 @@ trait Admin_Init
         }
 
         $settings_url = esc_url(add_query_arg([
-            'page' => 'wc-settings',
-            'tab' => 'settings_tab_billingo'
+                'page' => 'wc-settings',
+                'tab' => 'settings_tab_billingo'
         ], admin_url('admin.php')));
 
         $nonce = wp_create_nonce('billingo_dismiss_notification');
@@ -264,7 +271,7 @@ trait Admin_Init
                     <span class="dashicons dashicons-admin-plugins" style="font-size: 32px; color: #00a0d2; width: 32px; height: 32px;"></span>
                 </div>
                 <div style="flex: 1;">
-                    <h3 style="margin: 0 0 5px 0;"><?php _e('Billingo plugin telepítve/frissítve!', 'billingo'); ?></h3>
+                    <h3 style="margin: 0 0 5px 0;"><?php esc_html_e( 'Billingo plugin telepítve/frissítve!', 'billingo' ); ?></h3>
                     <p style="margin: 0;">
                         <?php echo esc_html__('Kérjük, ellenőrizze a Billingo beállításokat a megfelelő működés érdekében.', 'billingo'); ?>
                     </p>
@@ -281,42 +288,42 @@ trait Admin_Init
         </div>
 
         <script type="text/javascript">
-        function billingoDismissNotification(nonce) {
-            jQuery.ajax({
-                url: ajaxurl,
-                type: 'POST',
-                data: {
-                    action: 'billingo_dismiss_notification',
-                    nonce: nonce
-                },
-                success: function(response) {
-                    if (response.success) {
+            function billingoDismissNotification(nonce) {
+                jQuery.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'billingo_dismiss_notification',
+                        nonce: nonce
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            jQuery('#billingo-settings-notification').fadeOut();
+                        }
+                    },
+                    error: function() {
+                        // Fallback: just hide the notification if AJAX fails
                         jQuery('#billingo-settings-notification').fadeOut();
                     }
-                },
-                error: function() {
-                    // Fallback: just hide the notification if AJAX fails
-                    jQuery('#billingo-settings-notification').fadeOut();
-                }
-            });
-        }
+                });
+            }
 
-        // Handle WordPress default dismiss button
-        jQuery(document).on('click', '#billingo-settings-notification .notice-dismiss', function() {
-            billingoDismissNotification('<?php echo $nonce; ?>');
-        });
+            // Handle WordPress default dismiss button
+            jQuery(document).on('click', '#billingo-settings-notification .notice-dismiss', function() {
+                billingoDismissNotification('<?php echo $nonce; ?>');
+            });
         </script>
 
         <style>
-        #billingo-settings-notification {
-            border-left-color: #00a0d2 !important;
-        }
-        #billingo-settings-notification h3 {
-            color: #23282d;
-        }
-        #billingo-settings-notification .dashicons {
-            line-height: 32px;
-        }
+            #billingo-settings-notification {
+                border-left-color: #00a0d2 !important;
+            }
+            #billingo-settings-notification h3 {
+                color: #23282d;
+            }
+            #billingo-settings-notification .dashicons {
+                line-height: 32px;
+            }
         </style>
         <?php
     }
@@ -367,18 +374,18 @@ trait Admin_Init
                 $order_id = $order_or_order_id;
                 $order = wc_get_order($order_id);
             }
-            
+
             if (!$order) {
                 return;
             }
-            
+
             $repository = new Billingo_Repositroy();
             $repository->withCanceled();
-            
+
             // Get all documents for this order
             $allDocuments = $repository
-                ->where('order_id', $order_id)
-                ->get();
+                    ->where('order_id', $order_id)
+                    ->get();
 
             if (!empty($allDocuments)) {
                 // Sort by creation date (newest first)
@@ -390,49 +397,49 @@ trait Admin_Init
 
                 // Build the document icons HTML with responsive behavior
                 $documentsHtml = '<div class="billingo-document-icons" style="display: inline-block; margin-left: 5px;">';
-                
+
                 // For screens 1300px+: show max 2 documents
                 // For screens 800px-1299px: show max 1 document  
                 // For screens <800px: hide completely
-                
+
                 // Show maximum 2 documents for large screens, 1 for medium screens
                 $documentsHtml .= '<div class="billingo-docs-large-screen" style="display: inline-block;">';
                 $displayedDocsLarge = array_slice($allDocuments, 0, 2);
                 $remainingDocsLarge = array_slice($allDocuments, 2);
-                
+
                 foreach ($displayedDocsLarge as $doc) {
                     $documentsHtml .= self::generateDocumentIcon($doc);
                 }
-                
+
                 // Add "+" indicator if there are more documents (large screens)
                 if (!empty($remainingDocsLarge)) {
                     $documentsHtml .= self::generatePlusIcon($remainingDocsLarge);
                 }
                 $documentsHtml .= '</div>';
-                
+
                 // Show maximum 1 document for medium screens (800px-1299px)
                 $documentsHtml .= '<div class="billingo-docs-medium-screen" style="display: none;">';
                 $displayedDocsMedium = array_slice($allDocuments, 0, 1);
                 $remainingDocsMedium = array_slice($allDocuments, 1);
-                
+
                 foreach ($displayedDocsMedium as $doc) {
                     $documentsHtml .= self::generateDocumentIcon($doc);
                 }
-                
+
                 // Add "+" indicator if there are more documents (medium screens)
                 if (!empty($remainingDocsMedium)) {
                     $documentsHtml .= self::generatePlusIcon($remainingDocsMedium);
                 }
                 $documentsHtml .= '</div>';
-                
+
                 $documentsHtml .= '</div>';
-                
+
                 // Simply echo the HTML - it will be appended to the status column content
                 echo $documentsHtml;
             }
         }
     }
-    
+
     private static function generateDocumentIcon($doc)
     {
         $docType = $doc['type'];
@@ -490,17 +497,17 @@ trait Admin_Init
             default:
                 return ''; // Skip unknown document types
         }
-        
+
         return '<span class="billingo-document-icon" title="' . esc_attr($title . ': ' . $doc['billingo_number']) . '" style="margin-left: 3px; vertical-align: middle;">' . $svg . '</span>';
     }
-    
+
     private static function generatePlusIcon($remainingDocs)
     {
         $tooltipText = '';
         foreach ($remainingDocs as $doc) {
             $docType = $doc['type'];
             $title = '';
-            
+
             switch ($docType) {
                 case 'proforma':
                     $title = 'Díjbekérő';
@@ -514,10 +521,10 @@ trait Admin_Init
                 default:
                     $title = ucfirst($docType);
             }
-            
+
             $tooltipText .= $title . ': ' . $doc['billingo_number'] . "\n";
         }
-        
+
         return '<span class="billingo-more-docs" title="' . esc_attr(trim($tooltipText)) . '" style="margin-left: 3px; vertical-align: middle; background: #ddd; color: #333; border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; cursor: help;">+</span>';
     }
 

@@ -11,84 +11,127 @@ class Billingo_Repositroy
 {
     const TABLENAME_DOCUMENTS = 'billingo_documents';
 
+    /** Engedélyezett oszlopok (whitelist) */
+    private const ALLOWED_COLUMNS = [
+        'id',
+        'order_id',
+        'billingo_id',
+        'billingo_number',
+        'link',
+        'type',
+        'canceled_by',
+        'api_key',
+        'created_at'
+    ];
+
     private wpdb $database;
     private readonly string $tableName;
-    private ?string $query;
+
+    /** Dinamikus WHERE összeállításhoz */
+    private array $where = [];
+    private array $params = [];
+    private array $paramTypes = [];
     private bool $showCanceled = false;
 
-    public function __construct()
+    public function __construct(?wpdb $wpdbInstance = null)
     {
+        /** @var wpdb $wpdb */
         global $wpdb;
 
-        $this->database = $wpdb;
+        $this->database = $wpdbInstance ?: $wpdb;
         $this->tableName = $this->database->prefix . static::TABLENAME_DOCUMENTS;
+        $this->resetQuery();
     }
 
-    public function where(string $property, ?string $value): self
+    /**
+     * Biztonságos where: csak előre definiált oszlopokra enged,
+     * és előkészített paraméterekkel dolgozik.
+     */
+    public function where(string $column, ?string $value): self
     {
-        if (empty($this->query)) {
-            $this->query = is_null($value)
-                ? "{$property} IS NULL"
-                : "{$property} = '{$value}'";
+        $column = trim($column);
+
+        if (!in_array($column, self::ALLOWED_COLUMNS, true)) {
+            // ismeretlen oszlopra ne engedjük a lekérdezést
+            Billingo_Logger::error("Invalid column in where(): {$column}");
+            return $this;
+        }
+
+        if (is_null($value)) {
+            $this->where[] = "`{$column}` IS NULL";
         } else {
-            $this->query .= is_null($value)
-                ? " AND {$property} IS NULL"
-                : " AND {$property} = '{$value}'";
+            $this->where[] = "`{$column}` = %s";
+            $this->params[] = $value;
+            $this->paramTypes[] = '%s';
         }
 
         return $this;
     }
 
+    /**
+     * Rekord(ok) lekérdezése
+     */
     public function get(int $index = null): ?array
     {
-        $sql = "SELECT *
-                FROM {$this->tableName}";
+        // Alap SELECT
+        $sql = "SELECT * FROM `{$this->tableName}`";
 
+        // Alapértelmezés: a sztornózottak nélkül
         if (!$this->showCanceled) {
             $this->where('canceled_by', null);
         }
 
-        if (!empty($this->query)) {
-
-            $sql .= " WHERE {$this->query}";
+        // WHERE összeillesztése
+        if (!empty($this->where)) {
+            $sql .= ' WHERE ' . implode(' AND ', $this->where);
         }
 
-        $queryResult = $this->database->get_results($sql, ARRAY_A);
-        $this->setDefault();
+        // prepare csak akkor kell, ha van paraméter
+        $prepared = !empty($this->params)
+            ? $this->database->prepare($sql, $this->params)
+            : $sql;
 
-        return is_null($index)
-            ? $queryResult
-            : $queryResult[$index] ?? null;
+        $queryResult = $this->database->get_results($prepared, ARRAY_A) ?: [];
+        $this->resetQuery();
+
+        if ($index === null) {
+            return $queryResult;
+        }
+
+        return $queryResult[$index] ?? null;
     }
 
     public function first(): ?array
     {
-        return $this->get(0);
+        $rows = $this->get();
+        return $rows[0] ?? null;
     }
 
     public function withCanceled(): self
     {
         $this->showCanceled = true;
-
         return $this;
     }
 
+    /**
+     * Beszúrás – formátumokkal
+     */
     public function create(array $creating): ?array
     {
-        $created = $this->database->insert(
-            $this->tableName,
-            $creating);
+        $data = $this->filterToAllowedColumns($creating);
+        [$data, $formats] = $this->applyFormats($data);
+
+        $created = $this->database->insert($this->tableName, $data, $formats);
 
         if (!$created) {
-
             Billingo_Logger::error('Database save operation: FAILED');
-
             return null;
         }
 
-        Billingo_Logger::info("Database save operation: SUCCESSFUL, Record ID: {$this->database->insert_id}");
+        $id = (int)$this->database->insert_id;
+        Billingo_Logger::info("Database save operation: SUCCESSFUL, Record ID: {$id}");
 
-        return $this->where('id', $this->database->insert_id)->first();
+        return $this->where('id', (string)$id)->first();
     }
 
     public function createFromDocument(int $orderId, Document $document): ?array
@@ -97,148 +140,138 @@ class Billingo_Repositroy
         return is_null($filtered) ? null : $this->create($filtered);
     }
 
+    /**
+     * Módosítás – formátumokkal + biztonságos where
+     */
     public function update(int $id, array $updating): ?array
     {
-        $updated = $this->database->update(
-            $this->tableName,
-            $updating,
-            ['id' => $id]
-        );
+        $data = $this->filterToAllowedColumns($updating);
+        [$data, $formats] = $this->applyFormats($data);
+
+        $where = ['id' => $id];
+        $whereFormat = ['%d'];
+
+        $updated = $this->database->update($this->tableName, $data, $where, $formats, $whereFormat);
 
         if ($updated === false) {
-
             Billingo_Logger::error('Database update operation: FAILED');
-
             return null;
         }
 
         Billingo_Logger::info("Database update operation: SUCCESSFUL, Record ID: {$id}");
-
-        return $this->where('id', $id)->first();
+        return $this->where('id', (string)$id)->first();
     }
 
     public function updateFromDocument(int $id, int $orderId, Document $document): ?array
     {
         $filtered = $this->getDatafromDocument($orderId, $document);
-
         return is_null($filtered) ? null : $this->update($id, $filtered);
     }
 
+    /**
+     * Dokumentum objektumból táblába kerülő mezők
+     */
     private function getDatafromDocument(int $orderId, Document $document): ?array
     {
-        if ($document->hasError() && $document->getErrors()) {
+        if ($document->hasError()) {
             return null;
         }
 
         return [
-            'order_id' => $orderId,
-            "billingo_id" => $document->id,
-            "billingo_number" => $document->invoice_number,
-            "link" => (new Billingo_Controller($orderId))->getLink($document->id),
-            "type" => $document->type,
-            "api_key" => get_option('wc_billingo_api_key', ''),
+            'order_id'        => $orderId,
+            'billingo_id'     => (int)$document->id,
+            'billingo_number' => (string)$document->invoice_number,
+            'link'            => (string)(new Billingo_Controller($orderId))->getLink($document->id),
+            'type'            => (string)$document->type,
+            'api_key'         => (string)get_option('wc_billingo_api_key', ''),
+            // 'created_at'   => nem kell, default CURRENT_TIMESTAMP
         ];
     }
 
-    private function setDefault(): void
+    /**
+     * Query builder reset
+     */
+    private function resetQuery(): void
     {
-        $this->query = null;
+        $this->where = [];
+        $this->params = [];
+        $this->paramTypes = [];
         $this->showCanceled = false;
     }
 
+    /**
+     * Csak engedélyezett oszlopok átengedése
+     */
+    private function filterToAllowedColumns(array $data): array
+    {
+        return array_intersect_key($data, array_flip(self::ALLOWED_COLUMNS));
+    }
+
+    /**
+     * Oszlopokhoz típusformátum rendelése WPDB-hez
+     */
+    private function applyFormats(array $data): array
+    {
+        $formatsByColumn = [
+            'id'              => '%d',
+            'order_id'        => '%d',
+            'billingo_id'     => '%d',
+            'billingo_number' => '%s',
+            'link'            => '%s',
+            'type'            => '%s',
+            'canceled_by'     => '%d',
+            'api_key'         => '%s',
+            'created_at'      => '%s',
+        ];
+
+        $formats = [];
+        foreach ($data as $col => $val) {
+            $formats[] = $formatsByColumn[$col] ?? '%s';
+        }
+
+        return [$data, $formats];
+    }
+
+    /**
+     * Telepítés / sémakezelés: dbDelta használata (nem közvetlen ALTER/CREATE)
+     */
     public static function install(): void
     {
         global $wpdb;
 
         $table_name = $wpdb->prefix . self::TABLENAME_DOCUMENTS;
+        $charset_collate = $wpdb->get_charset_collate();
 
-        $wpdb->query('CREATE TABLE IF NOT EXISTS `' . $table_name . '`(
-              `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT, 
-              `order_id` INT(11) UNSIGNED NOT NULL, 
-              `billingo_id` INT(11) NULL, 
-              `billingo_number` VARCHAR(127) NULL, 
-              `link` VARCHAR(255) NULL, 
-              `type` VARCHAR(32) NULL, 
-              `canceled_by` INT(11) NULL DEFAULT NULL, 
-              `api_key` VARCHAR(64) NULL, 
-              `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (`id`),
-            KEY(`order_id`), 
-            KEY(`type`),
-            KEY(`api_key`));');
+        // dbDelta betöltése
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-        $column_exists = $wpdb->get_results($wpdb->prepare(
-            "SHOW COLUMNS FROM `$table_name` LIKE %s", 'canceled_by'
-        ));
+        // dbDelta: teljes, idempotens séma
+        $sql = "CREATE TABLE {$table_name} (
+            id INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+            order_id INT(11) UNSIGNED NOT NULL,
+            billingo_id INT(11) NULL,
+            billingo_number VARCHAR(127) NULL,
+            link VARCHAR(255) NULL,
+            type VARCHAR(32) NULL,
+            canceled_by INT(11) NULL DEFAULT NULL,
+            api_key VARCHAR(64) NULL,
+            created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            KEY order_id (order_id),
+            KEY type (type),
+            KEY api_key (api_key)
+        ) {$charset_collate};";
 
-        if (empty($column_exists)) {
-            $wpdb->query("ALTER TABLE `$table_name` ADD `canceled_by` INT(11) NULL DEFAULT NULL;");
-        }
+        dbDelta($sql);
     }
 
     /**
-     * Check for missing columns and add them if they don't exist
+     * Szükséges oszlopok érvényesítése: dbDelta-val rendezve
+     * (nem SHOW/ALTER közvetlenül)
      */
     public static function validateAndAddMissingColumns(): void
     {
-        global $wpdb;
-        $table_name = $wpdb->prefix . self::TABLENAME_DOCUMENTS;
-        
-        // Define required columns with their definitions
-        $required_columns = [
-            'id' => 'INT(11) UNSIGNED NOT NULL AUTO_INCREMENT',
-            'order_id' => 'INT(11) UNSIGNED NOT NULL',
-            'billingo_id' => 'INT(11) NULL',
-            'billingo_number' => 'VARCHAR(127) NULL',
-            'link' => 'VARCHAR(255) NULL',
-            'type' => 'VARCHAR(32) NULL',
-            'canceled_by' => 'INT(11) NULL DEFAULT NULL',
-            'api_key' => 'VARCHAR(64) NULL',
-            'created_at' => 'TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP'
-        ];
-        
-        // Get existing columns
-        $existing_columns = $wpdb->get_results("SHOW COLUMNS FROM `$table_name`", ARRAY_A);
-        $existing_column_names = array_column($existing_columns, 'Field');
-        
-        // Add missing columns
-        foreach ($required_columns as $column_name => $column_definition) {
-            if (!in_array($column_name, $existing_column_names)) {
-                $sql = "ALTER TABLE `$table_name` ADD `$column_name` $column_definition";
-                $result = $wpdb->query($sql);
-                
-                if ($result !== false) {
-                    Billingo_Logger::info("Successfully added column '$column_name' to billingo_documents table");
-                } else {
-                    Billingo_Logger::error("Failed to add column '$column_name' to billingo_documents table");
-                }
-                
-                // Migration for the created_at column: if date_add column exists, update created_at with date_add values
-                if ($column_name === 'created_at') {
-                    self::migrateFromDateAddToCreatedAt($table_name, $existing_column_names);
-                }
-            }
-        }
-    }
-    
-    /**
-     * Migrate data from date_add column to created_at column if date_add exists
-     */
-    private static function migrateFromDateAddToCreatedAt(string $table_name, array $existing_columns): void
-    {
-        global $wpdb;
-        
-        // Check if date_add column exists
-        if (in_array('date_add', $existing_columns)) {
-            //update if the date_add value is not null, and the created_at value is bigger than the date_add value
-            $update_sql = "UPDATE `$table_name` SET `created_at` = `date_add` WHERE `created_at` > `date_add` AND `date_add` IS NOT NULL";
-            $result = $wpdb->query($update_sql);
-            
-            if ($result !== false) {
-                Billingo_Logger::info("Successfully migrated $result records from date_add to created_at column");
-            } else {
-                Billingo_Logger::error("Failed to migrate data from date_add to created_at column");
-            }
-        }
+        // Egyszerűen futtassuk le újra az install-t (dbDelta idempotens)
+        self::install();
     }
 }

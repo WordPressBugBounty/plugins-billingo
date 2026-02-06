@@ -29,7 +29,7 @@ class UtilApi extends BillingoApi
 
         if ($validationCheck->hasError()) {
 
-            throw new BadContentException($validationCheck->getSelfTest());
+            throw new BadContentException(esc_html( $validationCheck->getSelfTest()));
         }
 
         $this->apiContext

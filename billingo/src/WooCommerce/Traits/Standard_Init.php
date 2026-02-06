@@ -28,7 +28,7 @@ trait Standard_Init
         add_action('wp_ajax_wc_billingo_storno_invoice', [self::class, 'ajax_stornoInvoice']);
         add_action('woocommerce_email_before_order_table', [self::class, 'action_woocommerce_email_before_order_table'], 1, 4);
         //add_action('woocommerce_email_before_order_table', [self::class, 'action_woocommerce_email_before_order_table'], 20, 4);
-        
+
         // 1 thankyou-ra should-proforma generate by payment method státusztól függetlenül
         add_action('woocommerce_thankyou', [self::class, 'should_proforma_generate'], 10, 1);
         // 2 automata díjbekérőt csak akkor generáljunk, ha az automata számla generálás státusz
@@ -44,7 +44,7 @@ trait Standard_Init
      * @param integer $order_id ID of the order that is linked to the document
      */
     public static function on_order_state_change($order_id): void
-    {   
+    {
         Billingo_Logger::info('on_order_state_change triggered for order ID: ' . $order_id);
         $invoice_generation_data = self::collect_invoice_generation_data($order_id);
 
@@ -94,12 +94,12 @@ trait Standard_Init
         if (get_option('wc_billingo_payment_request_auto') !== 'no') {
             $payment_method = $order->get_payment_method();
             Billingo_Logger::info('Checking payment method for proforma: ' . $payment_method);
-            
+
             // ellenőrizzük, hogy a fizetési módnál be van -e kapcsolva a díjbekérő generálása
             $payment_method_proforma_setting = get_option('wc_billingo_proforma_' . $payment_method);
             $payment_method_proforma_enabled = wcFlexibleIsTrue($payment_method_proforma_setting);
         }
-        
+
         //ha be van kapcsolva a díjbekérő generálása és a fizetési módnál be van kapcsolva a díjbekérő generálása akkor megnézzük, hogy már generálva van -e a díjbekérő vagy piszkozat,
         //ez azért fontos, mert ha már van generálva, akkor nem generáljuk le újra, hogy ne legyen több díjbekérő a rendeléshez, mert a woocommerce_thankyou hook meghívódhat az oldal frissítésekor is
         if ($payment_method_proforma_enabled) {
@@ -107,10 +107,10 @@ trait Standard_Init
                 ? 'getProforma'
                 : 'getDraft';
             $billingo_document = (new Billingo_Repositroy())
-                ->where('order_id', $order->get_id())
+                ->where('order_id', $order_id)
                 ->where('type', get_option('wc_billingo_payment_request_auto') === TypeEnum::PROFORMA->value
-                ? TypeEnum::PROFORMA->value
-                : TypeEnum::DRAFT->value)
+                    ? TypeEnum::PROFORMA->value
+                    : TypeEnum::DRAFT->value)
                 ->first();
 
             //ha nincs még generálva a díjbekérő vagy piszkozat, akkor generáljuk
@@ -119,18 +119,18 @@ trait Standard_Init
 
                 Billingo_Logger::startDocumentum();
                 $document = $invoice_generation_data->getDocumentGenerator()->$type();
-    
+
                 if (!is_null($document)) {
                     $invoice_generation_data->getController()->createDocument($document);
                 }
-    
+
                 Billingo_Logger::endDocumentum();
             } else {
                 //ha már generálva van a díjbekérő vagy piszkozat, akkor nem generáljuk újra
                 Billingo_Logger::info( $type . ' is already generated for payment method: ' . $payment_method);
             }
 
-           
+
         }
     }
 
@@ -175,8 +175,10 @@ trait Standard_Init
         }else{
             $billingoResponse = $client->document()->cancelDocument($billingo_id)->getResponse();
         }
-        if ($billingoResponse->getStatusCode() === Response::HTTP_OK) {
+
+        if ($billingoResponse->getStatusCode() === Response::HTTP_OK ) {
             $data = $billingoResponse->getData();
+
 
             $response['messages'][] =
                 __('Számla sztornózva: ', 'billingo') . $data->invoice_number;
@@ -186,11 +188,20 @@ trait Standard_Init
             Billingo_Logger::info('Invoice cancel data: ' . json_encode($data->toArray()));
 
             Billingo_Logger::info('Invoice cancel SUCCESFULL:' . $new_db_row['id']);
-        } else {
+        }else if ( $client->document()->getById($billingo_id)->getResponse()->getData()->toArray()['cancelled']){
+            $response['messages'][] =
+                __('Számla sztornózva a Billingóban: ', 'billingo');
+
+            $billingo_repository->update($row_in_db['id'], ['canceled_by' => 999999999]);
+
+            Billingo_Logger::info('Invoice already cancelled!');
+        }else {
             Billingo_Logger::error('Invoice cancel FAILED:' . json_encode($billingoResponse->getErrors()));
 
-            $response['error'] = true;
-            $response['messages'] = __('A számla sztornózása sikertelen ', 'billingo');
+            wp_send_json_error([
+                'error'    => true,
+                'messages' => [ __('A számla sztornózása sikertelen', 'billingo') ]
+            ]);
         }
 
         wp_send_json_success($response);
@@ -206,18 +217,18 @@ trait Standard_Init
         if(!isset($_POST['order'])) {
             wp_send_json_error(['error' => true, 'messages' => __('A rendelés ID nincs megadva', 'billingo')]);
         } else {
-        $orderId = (int)$_POST['order'];
+            $orderId = (int)$_POST['order'];
             update_post_meta($orderId, '_is_manual', 'yes');
         }
 
         Billingo_Logger::info('ajax_generateInvoice raw POST data for wc_billingo_invoice_type: ' . ($_POST['wc_billingo_invoice_type'] ?? 'NOT SET'));
         Billingo_Logger::info('ajax_generateInvoice full relevant POST data: ' . json_encode([
-            'order' => $_POST['order'] ?? null,
-            'wc_billingo_invoice_type' => $_POST['wc_billingo_invoice_type'] ?? null,
-            'wc_billingo_invoice_note' => $_POST['wc_billingo_invoice_note'] ?? null,
-            'wc_billingo_invoice_deadline' => $_POST['wc_billingo_invoice_deadline'] ?? null,
-            'wc_billingo_invoice_completed' => $_POST['wc_billingo_invoice_completed'] ?? null,
-        ]));
+                'order' => $_POST['order'] ?? null,
+                'wc_billingo_invoice_type' => $_POST['wc_billingo_invoice_type'] ?? null,
+                'wc_billingo_invoice_note' => $_POST['wc_billingo_invoice_note'] ?? null,
+                'wc_billingo_invoice_deadline' => $_POST['wc_billingo_invoice_deadline'] ?? null,
+                'wc_billingo_invoice_completed' => $_POST['wc_billingo_invoice_completed'] ?? null,
+            ]));
 
         $response['error'] = false;
 
@@ -291,7 +302,7 @@ trait Standard_Init
 
             return;
         }
-        
+
         Billingo_Logger::info('action_woocommerce_email_before_order_table triggered for email ID: ' . $email->id);
 
         $repository = new Billingo_Repositroy();
@@ -301,6 +312,18 @@ trait Standard_Init
         $pdf_link = false;
         $email_id = $email->id;
 
+        if (is_object($order)) {
+            if (method_exists($order, 'get_id')) {
+                $order_id = $order->get_id();
+            } elseif (property_exists($order, 'ID')) {
+                $order_id = $order->ID;
+            } elseif (method_exists($order, 'ID')) {
+                $order_id = $order->ID();
+            } else {
+                $order_id = null; // vagy dobj hibát
+            }
+        }
+
         // invoice
         if (in_array(get_option('wc_billingo_email'), ['attach', 'both'])
             && in_array($email_id, [
@@ -309,9 +332,9 @@ trait Standard_Init
                 'customer_completed_renewal_order',
                 'customer_completed_switch_order'
             ])) {
-                Billingo_Logger::info('invoice email through woocommerce triggered');
+            Billingo_Logger::info('invoice email through woocommerce triggered');
             $pdf_link = $repository
-                ->where('order_id', $order->get_id())
+                ->where('order_id', $order_id)
                 ->where('type', TypeEnum::INVOICE->value)
                 ->first();
 
@@ -328,38 +351,38 @@ trait Standard_Init
         if (in_array(get_option('wc_billingo_storno_email'), ['attach', 'both'])
             && $email_id == 'customer_refunded_order'
             && get_option('wc_billingo_auto_storno') !== 'no') {
-                Billingo_Logger::info('storno email through woocommerce triggered //storno email -before order table');
-                
-                // Check if storno document already exists
-                $existing_storno = $repository
-                    ->where('order_id', $order->get_id())
-                    ->where('type', TypeEnum::CANCELLATION->value)
-                    ->first();
-                
-                // If storno doesn't exist yet, generate it immediately
-                // For refunded order emails, we force generate storno regardless of order status
-                if (!$existing_storno) {
-                    Billingo_Logger::info('Generating storno document for customer_refunded_order email, order: ' . $order->get_id());
-                    $invoice_generation_data = self::collect_invoice_generation_data($order->get_id());
-                    
-                    Billingo_Logger::startDocumentum();
-                    $billingo_document = $invoice_generation_data->getRepositroy()
-                        ->where('type', TypeEnum::INVOICE->value)
-                        ->where('order_id', $order->get_id())
-                        ->first();
+            Billingo_Logger::info('storno email through woocommerce triggered //storno email -before order table');
 
-                    if (!is_null($billingo_document)) {
-                        $invoice_generation_data->getController()->cancelDocument($billingo_document['billingo_id']);
-                    }
-                    Billingo_Logger::endDocumentum();
+            // Check if storno document already exists
+            $existing_storno = $repository
+                ->where('order_id', $order_id)
+                ->where('type', TypeEnum::CANCELLATION->value)
+                ->first();
+
+            // If storno doesn't exist yet, generate it immediately
+            // For refunded order emails, we force generate storno regardless of order status
+            if (!$existing_storno) {
+                Billingo_Logger::info('Generating storno document for customer_refunded_order email, order: ' . $order_id);
+                $invoice_generation_data = self::collect_invoice_generation_data($order_id);
+
+                Billingo_Logger::startDocumentum();
+                $billingo_document = $invoice_generation_data->getRepositroy()
+                    ->where('type', TypeEnum::INVOICE->value)
+                    ->where('order_id', $order_id)
+                    ->first();
+
+                if (!is_null($billingo_document)) {
+                    $invoice_generation_data->getController()->cancelDocument($billingo_document['billingo_id']);
                 }
-                
-                $pdf_link = $repository
-                    ->where('order_id', $order->get_id())
-                    ->where('type', TypeEnum::CANCELLATION->value)
-                    ->first();
+                Billingo_Logger::endDocumentum();
+            }
 
-                $pdf_link = $pdf_link ? $pdf_link['link'] : null;
+            $pdf_link = $repository
+                ->where('order_id', $order_id)
+                ->where('type', TypeEnum::CANCELLATION->value)
+                ->first();
+
+            $pdf_link = $pdf_link ? $pdf_link['link'] : null;
 
             $text = get_option('wc_billingo_storno_email_woo_text',
                 __('Storno számlája elkészült, melyet az alábbi linken tud megtekinteni.', 'billingo'));
@@ -369,9 +392,9 @@ trait Standard_Init
         // proforma
         if (in_array(get_option('wc_billingo_proforma_email'), ['attach', 'both'])
             && in_array($email_id, ['customer_processing_order', 'customer_on_hold_order'])) {
-                Billingo_Logger::info('proforma email through woocommerce triggered');
+            Billingo_Logger::info('proforma email through woocommerce triggered');
             $pdf_link = $repository
-                ->where('order_id', $order->get_id())
+                ->where('order_id', $order_id)
                 ->where('type', TypeEnum::PROFORMA->value)
                 ->first();
 
@@ -379,11 +402,11 @@ trait Standard_Init
 
             //if the proforma is not generated, we generate it with the should_proforma_generate function
             if (!$pdf_link) {
-                self::should_proforma_generate($order->get_id());
+                self::should_proforma_generate($order_id);
                 //sleep for 1 second waiting for the proforma to be generated, because this function is a void function and it does not return the document
                 sleep(1);
                 $pdf_link = $repository
-                    ->where('order_id', $order->get_id())
+                    ->where('order_id', $order_id)
                     ->where('type', TypeEnum::PROFORMA->value)
                     ->first();
                 $pdf_link = $pdf_link ? $pdf_link['link'] : null;

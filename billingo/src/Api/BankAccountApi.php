@@ -54,7 +54,7 @@ class BankAccountApi extends BillingoApi
 
         if ($bankAccount->hasError()) {
 
-            throw new BadContentException($bankAccount->getSelfTest());
+            throw new BadContentException(esc_html( $bankAccount->getSelfTest()));
         }
 
         $this->apiContext
@@ -95,7 +95,7 @@ class BankAccountApi extends BillingoApi
 
         if ($bankAccount->hasError()) {
 
-            throw new BadContentException($bankAccount->getSelfTest());
+            throw new BadContentException(esc_html( $bankAccount->getSelfTest()));
         }
 
         $this->apiContext

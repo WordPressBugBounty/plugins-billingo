@@ -52,7 +52,7 @@ class PartnerApi extends BillingoApi
 
         if ($partner->hasError()) {
 
-            throw new BadContentException($partner->getSelfTest());
+            throw new BadContentException(esc_html( $partner->getSelfTest()));
         }
 
         $this->apiContext
