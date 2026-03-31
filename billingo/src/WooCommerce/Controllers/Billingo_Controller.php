@@ -52,8 +52,6 @@ class Billingo_Controller
             isset($hasProforma['billingo_id']) && 
             !empty($hasProforma['billingo_id']);
 
-        $this->shouldDisableWcEmail($document->type);
-
             if ($canUseProforma) {
                 return $this->createInvoiceFromProforma($hasProforma['billingo_id']);
             }
@@ -183,36 +181,5 @@ class Billingo_Controller
     private function store(Document $document): void
     {
         $this->repository->createFromDocument($this->orderId, $document);
-    }
-
-    private function shouldDisableWcEmail(string $type): void
-    {
-        $wcEmailId = match($type){
-            'invoice' => 'wc_billingo_email',
-            'proforma' => 'wc_billingo_proforma_email',
-            'cancellation' => 'wc_billingo_storno_email',
-            default => null,
-        };
-
-        $enabled = in_array(get_option($wcEmailId), ['attach', 'both'])
-            ? 'yes'
-            : 'no';
-
-        if ($enabled === 'yes') {
-            Billingo_Logger::info('Email send by WooCommerce');
-            $this->wcEmailToggle(true);
-        } else {
-            $this->wcEmailToggle(false);
-        }
-    }
-
-    private function wcEmailToggle(bool $on): void
-    {
-        $turnOffCallback = fn() => $on;
-
-        add_filter('woocommerce_email_enabled_customer_completed_order', $turnOffCallback, 10, 2);
-        add_filter('woocommerce_email_enabled_customer_refunded_order', $turnOffCallback, 10, 2);
-        add_filter('woocommerce_email_enabled_customer_processing_order', $turnOffCallback, 10, 2);
-        add_filter('woocommerce_email_enabled_customer_on_hold_order', $turnOffCallback, 10, 2);
     }
 }

@@ -825,14 +825,18 @@ class Billingo_Document_Generator
                 if ($feeTotal != 0) { // Pozitív vagy negatív összeg esetén is hozzáadjuk
                     // Tranzakciós díj ÁFA kulcsának meghatározása
                     $feeVatCode = $this->getFeeVatCode($fee);
-                    Billingo_Logger::info('Fee ÁFA kulcs: ' . $feeVatCode->value);
 
-                    // A bruttó összeg kiszámítása
+                    Billingo_Logger::info('Fee ÁFA kulcs: ' . $feeVatCode->value);
                     $firstItem = reset($items);
                     $firstItemData = $firstItem ? $firstItem->get_data() : null;
-
-                    $vatCode = $firstItemData ? $this->getCalculatedDateForItem('vat', $firstItemData)->value ?? VatEnum::PERCENT_27->value : VatEnum::PERCENT_0->value;
-
+                    if(!$feeVatCode){
+                        $vatCode = $firstItemData ? $this->getCalculatedDateForItem('vat', $firstItemData)->value ?? VatEnum::PERCENT_27->value : VatEnum::PERCENT_0->value;
+                    }else{
+                        $vatCode = $feeVatCode->value;
+                    }
+                    // A bruttó összeg kiszámítása
+                    
+                    
                     Billingo_Logger::info('Fee ÁFA kulcs: ' . $feeVatCode->value);
 
                     if($feeTax != 0 && (!wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax')) || $vatCode != $feeVatCode->value  )) {
@@ -855,7 +859,6 @@ class Billingo_Document_Generator
                         'vat' => $usedvatcode,
                         'comment' => ''
                     ]);
-
                     // áfa felülírás ha kell
                     if(wcFlexibleIsTrue(get_option('wc_billingo_tax_override'))){
                         $feeItem = $this->overrideTax($feeItem);
@@ -877,74 +880,127 @@ class Billingo_Document_Generator
      */
     private function getShippingVatCode($shippingMethod = null): VatEnum
     {
-        // Ha van szállítási módszer, próbáljuk meg lekérni az ÁFA kulcsot
+        // 1) Ha van kiszámolt shipping rate (WC_Shipping_Rate), abból próbáljuk
         if ($shippingMethod && method_exists($shippingMethod, 'get_taxes')) {
-            $taxes = $shippingMethod->get_taxes();
-            if (!empty($taxes)) {
-                // Az első ÁFA kulcsot használjuk
-                $taxRateId = array_key_first($taxes);
-                if ($taxRateId) {
-                    $taxRate = WC_Tax::_get_tax_rate($taxRateId);
-                    if ($taxRate && isset($taxRate['tax_rate'])) {
-                        $vatEnum = VatEnum::fromNumber($taxRate['tax_rate']);
-                        if ($vatEnum) {
-                            return $vatEnum;
+            $taxes = $shippingMethod->get_taxes(); // [tax_rate_id => amount]
+            if (is_array($taxes) && !empty($taxes)) {
+                // Keressünk egy olyan kulcsot, ami tényleg tax_rate_id (és nem 0 amount)
+                foreach ($taxes as $taxRateId => $amount) {
+                    if ($amount === null) continue;
+                    if ((float)$amount <= 0) continue;
+
+                    // taxRateId lehet string, castoljuk
+                    $taxRateId = (int)$taxRateId;
+                    if ($taxRateId > 0) {
+                        $taxRate = WC_Tax::_get_tax_rate($taxRateId); // ['tax_rate' => '27.0000', ...]
+                        if (!empty($taxRate['tax_rate'])) {
+                            return VatEnum::fromNumber((float)$taxRate['tax_rate']) ?? VatEnum::PERCENT_27;
                         }
                     }
                 }
             }
         }
 
-        // Ha nem sikerült meghatározni a szállítási ÁFA kulcsot,
-        // akkor az alapértelmezett 27%-ot használjuk (magyar standard)
+        // 2) Fallback: kérjük le a shipping tax rate-eket a WC saját logikájával
+        // (ez figyelembe veszi, hogy a tax rate sorban be van-e pipálva a "Szállítás")
+        $taxClass = get_option('woocommerce_shipping_tax_class', ''); // ''=standard, reduced-rate, zero-rate, inherit
+
+        // Ha "inherit" (based on items in cart), akkor nincs fix shipping ÁFA kulcs – itt maradunk defaulton
+        if ($taxClass !== 'inherit') {
+            $base = wc_get_base_location();
+
+            $location = [
+                'country'  => $base['country'] ?? '',
+                'state'    => $base['state'] ?? '',
+                'postcode' => '',
+                'city'     => '',
+            ];
+
+
+
+            // A WC_Tax::get_shipping_tax_rates visszaadja a shipping-re alkalmazható rate-eket (tax_rate_shipping=1 alapján)
+            $rates = WC_Tax::get_shipping_tax_rates($taxClass, WC()->customer);
+            if (is_array($rates) && !empty($rates)) {
+                $first = reset($rates); // a prioritás szerinti első
+                if (is_array($first) && isset($first['rate'])) {
+                    return VatEnum::fromNumber((float)$first['rate']) ?? VatEnum::PERCENT_27;
+                }
+            }
+        }
+
+        // 3) Default (HU standard)
         return VatEnum::PERCENT_27;
     }
+
 
     /**
      * Tranzakciós díj ÁFA kulcs meghatározása
      * @param mixed $fee WooCommerce fee objektum
      * @return VatEnum
      */
-    private function getFeeVatCode($fee): VatEnum
-    {
-        Billingo_Logger::info('Fee ÁFA kulcs meghatározása - Fee objektum típusa: ' . get_class($fee));
+    private function getFeeVatCode($fee): VatEnum{
+        Billingo_Logger::info('Fee ÁFA kulcs meghatározása - Fee objektum típusa: ' . (is_object($fee) ? get_class($fee) : gettype($fee)));
 
-        // Ha van fee objektum, próbáljuk meg lekérni az ÁFA kulcsot
+        // 1) Próbáljuk a rate_id-t kinyerni a get_taxes() struktúrából
         if ($fee && method_exists($fee, 'get_taxes')) {
             $taxes = $fee->get_taxes();
+
             Billingo_Logger::info('Fee taxes: ' . json_encode($taxes));
 
-            if (!empty($taxes)) {
-                // Az első ÁFA kulcsot használjuk
-                $taxRateId = array_key_first($taxes);
-                if ($taxRateId) {
-                    $taxRate = WC_Tax::_get_tax_rate($taxRateId);
-                    Billingo_Logger::info('Tax rate data: ' . json_encode($taxRate));
+            // Woo fee taxes jellemzően: ['total' => [rate_id => amount], 'subtotal' => [rate_id => amount]]
+            $rateId = null;
 
-                    if ($taxRate && isset($taxRate['tax_rate'])) {
-                        $vatEnum = VatEnum::fromNumber($taxRate['tax_rate']);
-                        if ($vatEnum) {
-                            Billingo_Logger::info('Fee ÁFA kulcs megtalálva: ' . $vatEnum->value . ' (' . $taxRate['tax_rate'] . '%)');
-                            return $vatEnum;
-                        }
+            if (is_array($taxes)) {
+                
+               if (!empty($taxes['total']) && is_array($taxes['total'])) {
+                    $rateId = $this->firstNonZeroTaxRateId($taxes['total']);
+                } elseif (!empty($taxes['subtotal']) && is_array($taxes['subtotal'])) {
+                    $rateId = $this->firstNonZeroTaxRateId($taxes['subtotal']);
+                } elseif (is_array($taxes)) {
+                    // fallback: ha közvetlen rate_id => amount struktúra jönne
+                    $rateId = $this->firstNonZeroTaxRateId($taxes);
+                }
+            }
+
+            if ($rateId) {
+                $taxRate = WC_Tax::_get_tax_rate($rateId);
+                Billingo_Logger::info('Tax rate data (rate_id=' . $rateId . '): ' . json_encode($taxRate));
+
+                if (is_array($taxRate) && isset($taxRate['tax_rate'])) {
+                    $rateNumber = (float)$taxRate['tax_rate'];
+                    $vatEnum = VatEnum::fromNumber($rateNumber);
+                    if ($vatEnum) {
+                        Billingo_Logger::info('Fee ÁFA kulcs megtalálva taxes alapján: ' . $vatEnum->value . ' (' . $rateNumber . '%)');
+                        return $vatEnum;
                     }
                 }
             }
         }
 
-        // Próbáljunk meg az ÁFA osztályt lekérni a fee-ből ha van tax_class property
+        // 2) Tax class alapján
         if ($fee && method_exists($fee, 'get_tax_class')) {
             $taxClass = $fee->get_tax_class();
+            
             Billingo_Logger::info('Fee tax class: ' . $taxClass);
 
             if (!empty($taxClass)) {
                 $taxRates = WC_Tax::get_rates_for_tax_class($taxClass);
+
                 if (!empty($taxRates)) {
                     $firstRate = reset($taxRates);
-                    if (isset($firstRate->tax_rate)) {
-                        $vatEnum = VatEnum::fromNumber($firstRate->tax_rate);
+
+                    // get_rates_for_tax_class() elemei tipikusan objektumok
+                    $rateNumber = null;
+                    if (is_object($firstRate) && isset($firstRate->tax_rate)) {
+                        $rateNumber = (float)$firstRate->tax_rate;
+                    } elseif (is_array($firstRate) && isset($firstRate['tax_rate'])) {
+                        $rateNumber = (float)$firstRate['tax_rate'];
+                    }
+
+                    if ($rateNumber !== null) {
+                        $vatEnum = VatEnum::fromNumber($rateNumber);
                         if ($vatEnum) {
-                            Billingo_Logger::info('Fee ÁFA kulcs tax class alapján: ' . $vatEnum->value . ' (' . $firstRate->tax_rate . '%)');
+                            Billingo_Logger::info('Fee ÁFA kulcs tax class alapján: ' . $vatEnum->value . ' (' . $rateNumber . '%)');
                             return $vatEnum;
                         }
                     }
@@ -952,10 +1008,9 @@ class Billingo_Document_Generator
             }
         }
 
-        // Ha nem sikerült meghatározni a tranzakciós díj ÁFA kulcsát,
-        // akkor az alapértelmezett 27%-ot használjuk (magyar standard)
+        // 3) Végső fallback: amit tényleg akarsz
         Billingo_Logger::info('Fee ÁFA kulcs nem található, alapértelmezett 27% használata');
-        return VatEnum::PERCENT_0;
+        return VatEnum::PERCENT_27; // <-- ezt állítsd a saját enumod szerint
     }
 
     /**
@@ -969,6 +1024,19 @@ class Billingo_Document_Generator
         // Eltávolítjuk a '%' karaktert és egyéb nem numerikus karaktereket
         $vatRate = preg_replace('/[^0-9\.]/', '', $vatCode);
         return !empty($vatRate) || $vatRate == 0 ? floatval($vatRate) : $defaultRate;
+    }
+
+    private function firstNonZeroTaxRateId(array $taxAmountsByRateId): ?int
+    {
+        foreach ($taxAmountsByRateId as $rateId => $amount) {
+            $num = is_numeric($amount) ? (float)$amount : 0.0;
+
+            if ($num > 0.0 && is_numeric($rateId)) {
+                return (int)$rateId;
+            }
+        }
+
+        return null;
     }
 
     private function getCalculatedDateForItem(string $dataName, array $item = null, string $countryCode = null): mixed
@@ -1018,12 +1086,17 @@ class Billingo_Document_Generator
 
     private function getProductSku(?array $item): string
     {
-        if (is_null($item)) {
-
+        if (empty($item)) {
             return '';
         }
 
-        return (new WC_Product($item['product_id']))->get_sku();
+        // Variáció előnyben
+        if (!empty($item['variation_id'])) {
+            $product = wc_get_product($item['variation_id']);
+        } else {
+            $product = wc_get_product($item['product_id']);
+        }
+        return $product ? (string)$product->get_sku() : '';
     }
 
     private function getNote($order ): string

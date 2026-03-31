@@ -1,4 +1,9 @@
 # Changelog
+-**4.3.0** - 2026.01.
+* Email disable bug solved
+* Fee tax update
+* Variable product sku to comment field
+
 -**4.2.9** - 2025.12.18
 * Vendor_id usage logic has changed.
 

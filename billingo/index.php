@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Billingo Official for WooCommerce
- * Version: 4.2.9
+ * Version: 4.3.0
  * Requires at least: 6.8
  * Requires PHP: 8.1
  * License: GPL v2 or later

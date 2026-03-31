@@ -3,7 +3,7 @@ Tags: billingo.hu, billingo, woocommerce, szamlazas, magyar
 Requires at least: 6.8
 Tested up to: 6.8
 Requires PHP: 8.1
-Stable tag: 4.2.9
+Stable tag: 4.3.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,12 @@ Pár kiemelt pont a működéssel kapcsolatosan:
 1. Töltsd le a bővítményt vagy telepítsd bel a Bővítmények menüpontban
 2. WooCommerce / Beállítások oldal alján megjelennek a Billingo beállítások, ezeket be kell állítani
 3. Beállíátsok elmentése után lehetőség van a fizetési módok összepárosítására a billingo rendszerében megfelelővel
+
+== Changelog ==
+= 4.3.0 =
+* Email disable bug solved
+* Fee tax update
+* Variable product sku to comment field
 
 == Changelog ==
 = 4.2.9 =
