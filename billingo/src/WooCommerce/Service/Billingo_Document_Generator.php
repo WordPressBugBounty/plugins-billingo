@@ -820,6 +820,7 @@ class Billingo_Document_Generator
                 $feeTax = floatval($fee->get_total_tax());
                 $feeName = $fee->get_name();
 
+
                 Billingo_Logger::info('Fee feldolgozása: ' . $feeName . ' - Total: ' . $feeTotal . ', Tax: ' . $feeTax);
 
                 if ($feeTotal != 0) { // Pozitív vagy negatív összeg esetén is hozzáadjuk
@@ -945,6 +946,7 @@ class Billingo_Document_Generator
         if ($fee && method_exists($fee, 'get_taxes')) {
             $taxes = $fee->get_taxes();
 
+
             Billingo_Logger::info('Fee taxes: ' . json_encode($taxes));
 
             // Woo fee taxes jellemzően: ['total' => [rate_id => amount], 'subtotal' => [rate_id => amount]]
@@ -953,16 +955,16 @@ class Billingo_Document_Generator
             if (is_array($taxes)) {
                 
                if (!empty($taxes['total']) && is_array($taxes['total'])) {
-                    $rateId = $this->firstNonZeroTaxRateId($taxes['total']);
+                    $rateId = $this->firstTaxRateId($taxes['total']);
                 } elseif (!empty($taxes['subtotal']) && is_array($taxes['subtotal'])) {
-                    $rateId = $this->firstNonZeroTaxRateId($taxes['subtotal']);
-                } elseif (is_array($taxes)) {
+                    $rateId = $this->firstTaxRateId($taxes['subtotal']);
+                } elseif (!isset($taxes['total']) && !isset($taxes['subtotal'])) {
                     // fallback: ha közvetlen rate_id => amount struktúra jönne
-                    $rateId = $this->firstNonZeroTaxRateId($taxes);
+                    $rateId = $this->firstTaxRateId($taxes);
                 }
             }
 
-            if ($rateId) {
+            if ($rateId !== null) {
                 $taxRate = WC_Tax::_get_tax_rate($rateId);
                 Billingo_Logger::info('Tax rate data (rate_id=' . $rateId . '): ' . json_encode($taxRate));
 
@@ -980,12 +982,11 @@ class Billingo_Document_Generator
         // 2) Tax class alapján
         if ($fee && method_exists($fee, 'get_tax_class')) {
             $taxClass = $fee->get_tax_class();
-            
+
             Billingo_Logger::info('Fee tax class: ' . $taxClass);
-
-            if (!empty($taxClass)) {
+            if (!empty($taxClass) || ($taxClass === '0' && wcFlexibleIsTrue(get_option('wc_billingo_tax_override')))) {
+                
                 $taxRates = WC_Tax::get_rates_for_tax_class($taxClass);
-
                 if (!empty($taxRates)) {
                     $firstRate = reset($taxRates);
 
@@ -1009,8 +1010,16 @@ class Billingo_Document_Generator
         }
 
         // 3) Végső fallback: amit tényleg akarsz
-        Billingo_Logger::info('Fee ÁFA kulcs nem található, alapértelmezett 27% használata');
-        return VatEnum::PERCENT_27; // <-- ezt állítsd a saját enumod szerint
+        Billingo_Logger::error(
+            'Fee ÁFA kulcs nem található. Fee adatok: ' .
+            json_encode([
+                'fee_class' => is_object($fee) ? get_class($fee) : gettype($fee),
+                'taxes' => ($fee && method_exists($fee, 'get_taxes')) ? $fee->get_taxes() : null,
+                'tax_class' => ($fee && method_exists($fee, 'get_tax_class')) ? $fee->get_tax_class() : null,
+            ])
+        );
+
+        throw new \Exception('Fee VAT rate could not be determined.');
     }
 
     /**
@@ -1026,12 +1035,11 @@ class Billingo_Document_Generator
         return !empty($vatRate) || $vatRate == 0 ? floatval($vatRate) : $defaultRate;
     }
 
-    private function firstNonZeroTaxRateId(array $taxAmountsByRateId): ?int
+    private function firstTaxRateId(array $taxAmountsByRateId): ?int
     {
         foreach ($taxAmountsByRateId as $rateId => $amount) {
-            $num = is_numeric($amount) ? (float)$amount : 0.0;
 
-            if ($num > 0.0 && is_numeric($rateId)) {
+            if (is_numeric($rateId)) {
                 return (int)$rateId;
             }
         }

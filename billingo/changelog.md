@@ -1,4 +1,8 @@
 # Changelog
+-**4.3.1** - 2026.05.
+* Fees tax woo update
+* WP 7.0 compatible changes
+
 -**4.3.0** - 2026.01.
 * Email disable bug solved
 * Fee tax update

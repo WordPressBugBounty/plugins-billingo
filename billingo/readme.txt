@@ -56,6 +56,11 @@ Pár kiemelt pont a működéssel kapcsolatosan:
 3. Beállíátsok elmentése után lehetőség van a fizetési módok összepárosítására a billingo rendszerében megfelelővel
 
 == Changelog ==
+= 4.3.1 =
+* Fees tax woo update
+* WP 7.0 compatible changes
+
+== Changelog ==
 = 4.3.0 =
 * Email disable bug solved
 * Fee tax update
