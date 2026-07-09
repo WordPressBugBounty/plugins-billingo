@@ -939,88 +939,147 @@ class Billingo_Document_Generator
      * @param mixed $fee WooCommerce fee objektum
      * @return VatEnum
      */
-    private function getFeeVatCode($fee): VatEnum{
-        Billingo_Logger::info('Fee ÁFA kulcs meghatározása - Fee objektum típusa: ' . (is_object($fee) ? get_class($fee) : gettype($fee)));
+    private function getFeeVatCode($fee): VatEnum
+{
+    Billingo_Logger::info(
+        'Fee ÁFA kulcs meghatározása - Fee objektum típusa: ' .
+        (is_object($fee) ? get_class($fee) : gettype($fee))
+    );
 
-        // 1) Próbáljuk a rate_id-t kinyerni a get_taxes() struktúrából
-        if ($fee && method_exists($fee, 'get_taxes')) {
-            $taxes = $fee->get_taxes();
+    // 1) Próbáljuk a rate_id-t kinyerni a get_taxes() struktúrából
+    if ($fee && method_exists($fee, 'get_taxes')) {
+        $taxes = $fee->get_taxes();
 
+        Billingo_Logger::info('Fee taxes: ' . json_encode($taxes));
 
-            Billingo_Logger::info('Fee taxes: ' . json_encode($taxes));
+        $rateId = null;
 
-            // Woo fee taxes jellemzően: ['total' => [rate_id => amount], 'subtotal' => [rate_id => amount]]
-            $rateId = null;
-
-            if (is_array($taxes)) {
-                
-               if (!empty($taxes['total']) && is_array($taxes['total'])) {
-                    $rateId = $this->firstTaxRateId($taxes['total']);
-                } elseif (!empty($taxes['subtotal']) && is_array($taxes['subtotal'])) {
-                    $rateId = $this->firstTaxRateId($taxes['subtotal']);
-                } elseif (!isset($taxes['total']) && !isset($taxes['subtotal'])) {
-                    // fallback: ha közvetlen rate_id => amount struktúra jönne
-                    $rateId = $this->firstTaxRateId($taxes);
-                }
-            }
-
-            if ($rateId !== null) {
-                $taxRate = WC_Tax::_get_tax_rate($rateId);
-                Billingo_Logger::info('Tax rate data (rate_id=' . $rateId . '): ' . json_encode($taxRate));
-
-                if (is_array($taxRate) && isset($taxRate['tax_rate'])) {
-                    $rateNumber = (float)$taxRate['tax_rate'];
-                    $vatEnum = VatEnum::fromNumber($rateNumber);
-                    if ($vatEnum) {
-                        Billingo_Logger::info('Fee ÁFA kulcs megtalálva taxes alapján: ' . $vatEnum->value . ' (' . $rateNumber . '%)');
-                        return $vatEnum;
-                    }
-                }
+        if (is_array($taxes)) {
+            if (!empty($taxes['total']) && is_array($taxes['total'])) {
+                $rateId = $this->firstTaxRateId($taxes['total']);
+            } elseif (!empty($taxes['subtotal']) && is_array($taxes['subtotal'])) {
+                $rateId = $this->firstTaxRateId($taxes['subtotal']);
+            } elseif (!isset($taxes['total']) && !isset($taxes['subtotal'])) {
+                // fallback: ha közvetlen rate_id => amount struktúra jönne
+                $rateId = $this->firstTaxRateId($taxes);
             }
         }
 
-        // 2) Tax class alapján
-        if ($fee && method_exists($fee, 'get_tax_class')) {
-            $taxClass = $fee->get_tax_class();
+        if ($rateId !== null) {
+            $taxRate = WC_Tax::_get_tax_rate($rateId);
 
-            Billingo_Logger::info('Fee tax class: ' . $taxClass);
-            if (!empty($taxClass) || ($taxClass === '0' && wcFlexibleIsTrue(get_option('wc_billingo_tax_override')))) {
-                
-                $taxRates = WC_Tax::get_rates_for_tax_class($taxClass);
-                if (!empty($taxRates)) {
-                    $firstRate = reset($taxRates);
+            Billingo_Logger::info(
+                'Tax rate data (rate_id=' . $rateId . '): ' .
+                json_encode($taxRate)
+            );
 
-                    // get_rates_for_tax_class() elemei tipikusan objektumok
-                    $rateNumber = null;
-                    if (is_object($firstRate) && isset($firstRate->tax_rate)) {
-                        $rateNumber = (float)$firstRate->tax_rate;
-                    } elseif (is_array($firstRate) && isset($firstRate['tax_rate'])) {
-                        $rateNumber = (float)$firstRate['tax_rate'];
-                    }
+            if (is_array($taxRate) && isset($taxRate['tax_rate'])) {
+                $rateNumber = (float)$taxRate['tax_rate'];
+                $vatEnum = VatEnum::fromNumber($rateNumber);
 
-                    if ($rateNumber !== null) {
-                        $vatEnum = VatEnum::fromNumber($rateNumber);
-                        if ($vatEnum) {
-                            Billingo_Logger::info('Fee ÁFA kulcs tax class alapján: ' . $vatEnum->value . ' (' . $rateNumber . '%)');
-                            return $vatEnum;
-                        }
-                    }
+                if ($vatEnum) {
+                    Billingo_Logger::info(
+                        'Fee ÁFA kulcs megtalálva taxes alapján: ' .
+                        $vatEnum->value .
+                        ' (' . $rateNumber . '%)'
+                    );
+
+                    return $vatEnum;
                 }
             }
         }
+    }
 
-        // 3) Végső fallback: amit tényleg akarsz
-        Billingo_Logger::error(
-            'Fee ÁFA kulcs nem található. Fee adatok: ' .
-            json_encode([
-                'fee_class' => is_object($fee) ? get_class($fee) : gettype($fee),
-                'taxes' => ($fee && method_exists($fee, 'get_taxes')) ? $fee->get_taxes() : null,
-                'tax_class' => ($fee && method_exists($fee, 'get_tax_class')) ? $fee->get_tax_class() : null,
-            ])
+    // 2) Fee saját tax class alapján
+    // Fontos: WooCommerce standard tax class = üres string ''
+    // Ezért az üres tax class-t is kezelni kell.
+    if ($fee && method_exists($fee, 'get_tax_class')) {
+        $taxClass = (string)$fee->get_tax_class();
+
+        Billingo_Logger::info('Fee tax class: ' . $taxClass);
+
+        $vatEnum = $this->getVatEnumByTaxClass($taxClass);
+
+        if ($vatEnum) {
+            Billingo_Logger::info(
+                'Fee ÁFA kulcs fee tax class alapján: ' .
+                $vatEnum->value .
+                ' (tax_class=' . $taxClass . ')'
+            );
+
+            return $vatEnum;
+        }
+    }
+
+    // 3) Ha a fee-ből nem derült ki, próbáljuk a rendelés termékeiből.
+    // Vegyes ÁFA esetén itt nem választunk találomra, hanem továbbengedjük standard fallbackre.
+    $order = $this->getOrderFromFee($fee);
+
+    if ($order instanceof WC_Order) {
+        $vatEnum = $this->getVatEnumFromOrderProductTaxClasses($order);
+
+        if ($vatEnum) {
+            Billingo_Logger::info(
+                'Fee ÁFA kulcs rendelés termékeinek egységes ÁFA kulcsa alapján: ' .
+                $vatEnum->value
+            );
+
+            return $vatEnum;
+        }
+    }
+
+    // 4) Végső fallback: WooCommerce standard tax class
+    // WooCommerce-ben a standard tax class kulcsa üres string.
+    $vatEnum = $this->getVatEnumByTaxClass('');
+
+    if ($vatEnum) {
+        Billingo_Logger::info(
+            'Fee ÁFA kulcs WooCommerce standard tax class alapján: ' .
+            $vatEnum->value
         );
 
-        throw new \Exception('Fee VAT rate could not be determined.');
+        return $vatEnum;
     }
+
+    // 5) Ha semmi nem található, akkor dobunk hibát
+    Billingo_Logger::error(
+        'Fee ÁFA kulcs nem található. Fee adatok: ' .
+        json_encode([
+            'fee_class' => is_object($fee) ? get_class($fee) : gettype($fee),
+            'taxes' => ($fee && method_exists($fee, 'get_taxes')) ? $fee->get_taxes() : null,
+            'tax_class' => ($fee && method_exists($fee, 'get_tax_class')) ? $fee->get_tax_class() : null,
+            'order_id' => ($fee && method_exists($fee, 'get_order_id')) ? $fee->get_order_id() : null,
+        ])
+    );
+
+    throw new \Exception('Fee VAT rate could not be determined.');
+}
+
+
+   private function getOrderFromFee($fee): ?WC_Order
+{
+    if ($fee && method_exists($fee, 'get_order_id')) {
+        $orderId = (int)$fee->get_order_id();
+
+        if ($orderId > 0) {
+            $order = wc_get_order($orderId);
+
+            if ($order instanceof WC_Order) {
+                return $order;
+            }
+        }
+    }
+
+    if ($fee && method_exists($fee, 'get_order')) {
+        $order = $fee->get_order();
+
+        if ($order instanceof WC_Order) {
+            return $order;
+        }
+    }
+
+    return null;
+}
 
     /**
      * Visszaadja az ÁFA kulcs százalékos értékét a kód alapján
@@ -1043,6 +1102,124 @@ class Billingo_Document_Generator
                 return (int)$rateId;
             }
         }
+
+        return null;
+    }
+
+    private function getVatEnumByTaxClass(string $taxClass): ?VatEnum
+    {
+        $taxRates = WC_Tax::get_rates_for_tax_class($taxClass);
+
+        Billingo_Logger::info(
+            'Tax rates for tax class "' . $taxClass . '": ' .
+            json_encode($taxRates)
+        );
+
+        if (empty($taxRates)) {
+            return null;
+        }
+
+        $firstRate = reset($taxRates);
+
+        $rateNumber = null;
+
+        if (is_object($firstRate) && isset($firstRate->tax_rate)) {
+            $rateNumber = (float)$firstRate->tax_rate;
+        } elseif (is_array($firstRate) && isset($firstRate['tax_rate'])) {
+            $rateNumber = (float)$firstRate['tax_rate'];
+        }
+
+        if ($rateNumber === null) {
+            Billingo_Logger::info(
+                'Tax class alapján nem sikerült tax_rate értéket kiolvasni: ' .
+                $taxClass
+            );
+
+            return null;
+        }
+
+        $vatEnum = VatEnum::fromNumber($rateNumber);
+
+        if (!$vatEnum) {
+            Billingo_Logger::info(
+                'Tax rate nem illeszthető Billingo VatEnum értékre: ' .
+                $rateNumber .
+                '%'
+            );
+
+            return null;
+        }
+
+        return $vatEnum;
+    }
+
+    private function getVatEnumFromOrderProductTaxClasses(WC_Order $order): ?VatEnum
+    {
+        $vatValues = [];
+
+        foreach ($order->get_items('line_item') as $item) {
+            if (!$item instanceof WC_Order_Item_Product) {
+                continue;
+            }
+
+            $product = $item->get_product();
+
+            if (!$product instanceof WC_Product) {
+                continue;
+            }
+
+            if (
+                method_exists($product, 'get_tax_status') &&
+                $product->get_tax_status() !== 'taxable'
+            ) {
+                Billingo_Logger::info(
+                    'Termék kihagyva fee ÁFA fallbackből, mert nem taxable: product_id=' .
+                    $product->get_id() .
+                    ', sku=' . $product->get_sku() .
+                    ', tax_status=' . $product->get_tax_status()
+                );
+
+                continue;
+            }
+
+            // WooCommerce standard tax class = ''
+            $taxClass = (string)$product->get_tax_class();
+
+            Billingo_Logger::info(
+                'Termék tax class vizsgálat fee fallbackhez: product_id=' .
+                $product->get_id() .
+                ', sku=' . $product->get_sku() .
+                ', tax_class=' . $taxClass
+            );
+
+            $vatEnum = $this->getVatEnumByTaxClass($taxClass);
+
+            if (!$vatEnum) {
+                continue;
+            }
+
+            $vatValues[$vatEnum->value] = $vatEnum;
+        }
+
+        if (count($vatValues) === 1) {
+            return reset($vatValues);
+        }
+
+        if (count($vatValues) > 1) {
+            Billingo_Logger::info(
+                'Vegyes ÁFA kulcsok vannak a rendelés termékein: ' .
+                implode(', ', array_keys($vatValues)) .
+                '. Mivel a getFeeVatCode() csak egy ÁFA kulcsot tud visszaadni, ' .
+                'nem választunk termék alapján. Standard tax fallback következik.'
+            );
+
+            return null;
+        }
+
+        Billingo_Logger::info(
+            'Fee ÁFA kulcs nem meghatározható rendelés termékek alapján, ' .
+            'mert nem találtunk használható taxable terméket.'
+        );
 
         return null;
     }
