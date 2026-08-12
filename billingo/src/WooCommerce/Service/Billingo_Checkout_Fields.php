@@ -2,6 +2,9 @@
 
 namespace App\Billingo\WooCommerce\Service;
 use App\Billingo\WooCommerce\Service\Billingo_Logger;
+use App\Billingo\Service\BillingoClient;
+use App\Billingo\Models\Util\TaxNumber;
+use App\Billingo\Enums\CheckTaxNumberMessageEnum;
 
 class Billingo_Checkout_Fields
 {
@@ -98,21 +101,81 @@ class Billingo_Checkout_Fields
     }
 
     /**
-     * Validálja az adószám mezőt (opcionális validáció)
+     * Validálja az adószám mezőt.
+     *
+     * Ha az élő NAV-ellenőrzés be van kapcsolva (wc_billingo_vat_number_live_check), a
+     * megadott adószámot ténylegesen leellenőrzi a Billingo API-n (NAV) keresztül, és
+     * hibás/nem létező adószám esetén blokkolja a rendelés leadását. API-hiba vagy hálózati
+     * probléma esetén "fail-open"-nel működik (nem blokkol), hogy egy átmeneti Billingo/NAV
+     * kiesés ne akassza meg a boltban a vásárlást.
      */
     public static function validate_vat_number_field(): void
     {
-        // Itt lehetne validálni az adószám formátumát, ha szükséges
-        // Jelenleg csak alapvető ellenőrzést végzünk
-        if (isset($_POST['billing_vat_number']) && !empty($_POST['billing_vat_number'])) {
-            $vat_number = sanitize_text_field($_POST['billing_vat_number']);
-
-            // Magyar adószám formátum ellenőrzése
-            if (!empty($vat_number) && !self::is_valid_hungarian_vat_number($vat_number)) {
-                // Nem blokkoljuk a rendelést, csak figyelmeztetést adunk
-                // wc_add_notice(__('Az adószám formátuma nem megfelelő.', 'billingo'), 'notice');
-            }
+        if (!isset($_POST['billing_vat_number']) || empty($_POST['billing_vat_number'])) {
+            return;
         }
+
+        $vat_number = sanitize_text_field(wp_unslash($_POST['billing_vat_number']));
+
+        if (!self::is_valid_hungarian_vat_number($vat_number)) {
+            // Nem blokkoljuk a rendelést csak a formai hiba miatt, csak figyelmeztetünk.
+            wc_add_notice(__('Az adószám formátuma nem megfelelő.', 'billingo'), 'notice');
+            return;
+        }
+
+        if (!wcFlexibleIsTrue(get_option('wc_billingo_vat_number_live_check'))) {
+            return;
+        }
+
+        $normalized = self::normalize_hungarian_vat_number($vat_number);
+
+        if ($normalized === null) {
+            wc_add_notice(__('Az adószám formátuma nem megfelelő.', 'billingo'), 'error');
+            return;
+        }
+
+        try {
+            $response = (new BillingoClient(get_option('wc_billingo_api_key', '')))
+                ->util()
+                ->checkTaxNumber($normalized)
+                ->getResponse();
+
+            if ($response->getStatusCode() !== 200) {
+                Billingo_Logger::warning('Adószám NAV-ellenőrzés sikertelen (HTTP ' . $response->getStatusCode() . '), a checkout nem lett blokkolva.');
+                return;
+            }
+
+            $data = $response->getData();
+            $result = $data instanceof TaxNumber ? $data->result : null;
+
+            if (in_array($result, [
+                CheckTaxNumberMessageEnum::INVALID_TAX_NUMBER->value,
+                CheckTaxNumberMessageEnum::NON_EXIST_TAX_NUMBER->value,
+            ], true)) {
+                wc_add_notice(__('A megadott adószám a NAV nyilvántartása szerint nem érvényes. Kérjük, ellenőrizze az adószámot.', 'billingo'), 'error');
+            }
+            // EXTERNAL_NAV_SERVICE_UNREACHABLE / NO_ONLINE_SZAMLA_SETTINGS esetén fail-open: nem blokkoljuk a vásárlást.
+        } catch (\Exception $e) {
+            Billingo_Logger::error('Adószám NAV-ellenőrzés kivétel: ' . $e->getMessage() . ' — a checkout nem lett blokkolva.');
+        }
+    }
+
+    /**
+     * A felhasználó által beírt (kötőjellel/anélkül, szóközökkel) adószámot a Billingo API
+     * által elvárt "NNNNNNNN-N-NN" formátumra hozza. Null-t ad vissza, ha a bemenet nem
+     * alakítható érvényes formátumra.
+     */
+    private static function normalize_hungarian_vat_number(string $vat_number): ?string
+    {
+        $digits = preg_replace('/[^0-9]/', '', $vat_number);
+
+        if (strlen($digits) !== 11) {
+            return null;
+        }
+
+        $formatted = substr($digits, 0, 8) . '-' . substr($digits, 8, 1) . '-' . substr($digits, 9, 2);
+
+        return preg_match('/^\d{8}-[1-5]-\d{2}$/', $formatted) === 1 ? $formatted : null;
     }
 
     /**
@@ -231,7 +294,10 @@ class Billingo_Checkout_Fields
 
             if ($product && method_exists($product, 'get_regular_price')) {
                 $regular_price = $product->get_regular_price();
-                $sale_price = ($item->get_subtotal() + $item->get_subtotal_tax())/ $item->get_quantity() ;
+                $quantity = $item->get_quantity();
+                $sale_price = $quantity > 0
+                    ? ($item->get_subtotal() + $item->get_subtotal_tax()) / $quantity
+                    : 0;
                 if (!empty($regular_price)) {
                     // Metaadat mentése a rendelési tételhez
                     wc_add_order_item_meta($item_id, '_wc_billingo_product_full_price_without_sale', $regular_price);

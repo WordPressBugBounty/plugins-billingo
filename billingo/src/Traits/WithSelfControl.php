@@ -48,7 +48,7 @@ trait WithSelfControl
         return false;
     }
 
-    private function getObjectCheck(): BillingoError|string|array
+    protected function getObjectCheck(): BillingoError|string|array
     {
 
         if (!is_null($this->getErrors())) {

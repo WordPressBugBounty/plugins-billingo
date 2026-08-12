@@ -20,6 +20,7 @@ trait Admin_Init
         add_action('woocommerce_update_options_settings_tab_billingo', [self::class, 'update_settings']);
         add_action('add_meta_boxes', [self::class, 'wc_billingo_add_metabox']);
         add_filter('plugin_action_links_billingonew/index.php', [self::class, 'add_wp_settings_link']);
+        add_action('admin_head', [self::class, 'add_settings_tab_styles']);
 
 
         // Add admin notices and AJAX handlers for settings notification
@@ -30,6 +31,140 @@ trait Admin_Init
         add_action('manage_woocommerce_page_wc-orders_custom_column', [self::class, 'display_order_documents_in_status_column'], 10, 2);
         add_action('manage_shop_order_posts_custom_column', [self::class, 'display_order_documents_in_status_column'], 10, 2);
         add_action('admin_head', [self::class, 'add_order_documents_styles']);
+
+        // Termékenkénti bizonylattípus-felülírás (pl. előlegszámla) a termékszerkesztő oldalon
+        add_filter('woocommerce_product_data_tabs', [self::class, 'add_billingo_product_data_tab']);
+        add_action('woocommerce_product_data_panels', [self::class, 'render_billingo_product_data_panel']);
+        add_action('woocommerce_process_product_meta', [self::class, 'save_billingo_product_document_type']);
+
+        // Bizonylat link megjelenítése a rendelés szerkesztő fő tartalmában (tételek/összesítő
+        // doboz), nem csak az oldalsó "Billingo számla" dobozban
+        add_action('woocommerce_admin_order_totals_after_total', [self::class, 'display_invoice_link_in_order_totals']);
+    }
+
+    /**
+     * A legutóbb létrehozott (nem sztornózott) bizonylat linkjét jeleníti meg a rendelés
+     * szerkesztő oldal fő "Rendelés összesítő" (tételek/totals) dobozában, az összesen sor
+     * alatt — az oldalsó "Billingo számla" doboztól függetlenül.
+     */
+    public static function display_invoice_link_in_order_totals($order_id): void
+    {
+        $repository = new Billingo_Repositroy();
+
+        // A "cancellation" (sztornó) rekordot itt is kizárjuk, ugyanazon okból, mint a
+        // "Billingo számla" metaboxnál: a saját canceled_by mezője sosem töltődik ki,
+        // ezért egy korábban sztornózott, de azóta újra kiállított számla helyett tévesen
+        // a sztornót mutatná legutóbbi dokumentumként.
+        $documents = array_filter(
+            $repository->where('order_id', $order_id)->get() ?? [],
+            fn($doc) => ($doc['type'] ?? null) !== TypeEnum::CANCELLATION->value
+        );
+
+        if (empty($documents)) {
+            return;
+        }
+
+        $documents = array_values($documents);
+        usort($documents, function ($a, $b) {
+            return strcmp($b['created_at'] ?? '', $a['created_at'] ?? '');
+        });
+
+        $latest = $documents[0];
+
+        if (empty($latest['link'])) {
+            return;
+        }
+
+        $typeNames = [
+            TypeEnum::INVOICE->value => __('Számla', 'billingo'),
+            TypeEnum::PROFORMA->value => __('Díjbekérő', 'billingo'),
+            TypeEnum::DRAFT->value => __('Piszkozat', 'billingo'),
+            TypeEnum::ADVANCE->value => __('Előlegszámla', 'billingo'),
+            TypeEnum::CANCELLATION->value => __('Sztornó', 'billingo'),
+        ];
+
+        $typeLabel = $typeNames[$latest['type']] ?? $latest['type'];
+        ?>
+        <tr>
+            <td class="label"><?php echo esc_html($typeLabel); ?>:</td>
+            <td width="1%"></td>
+            <td class="total">
+                <?php if (!empty($latest['billingo_number'])) : ?>
+                    <?php echo esc_html($latest['billingo_number']); ?>
+                    &nbsp;
+                <?php endif; ?>
+                <a href="<?php echo esc_url($latest['link']); ?>" target="_blank" class="button button-small">
+                    <?php esc_html_e('Megtekintés', 'billingo'); ?>
+                </a>
+            </td>
+        </tr>
+        <?php
+    }
+
+    /**
+     * Új "Számlázás" fület ad a termékszerkesztő "Product data" dobozához.
+     */
+    public static function add_billingo_product_data_tab(array $tabs): array
+    {
+        $tabs['billingo'] = [
+            'label' => __('Számlázás', 'billingo'),
+            'target' => 'billingo_product_data',
+            'class' => [],
+            'priority' => 80,
+        ];
+
+        return $tabs;
+    }
+
+    /**
+     * A "Számlázás" fül tartalma: termékenkénti bizonylattípus-felülírás.
+     */
+    public static function render_billingo_product_data_panel(): void
+    {
+        global $post;
+
+        $current = get_post_meta($post->ID, '_billingo_document_type_override', true);
+        ?>
+        <div id="billingo_product_data" class="panel woocommerce_options_panel">
+            <div class="options_group">
+                <?php
+                woocommerce_wp_select([
+                    'id' => '_billingo_document_type_override',
+                    'label' => __('Bizonylattípus felülírás', 'billingo'),
+                    'description' => __('Ha be van állítva, az ezt a terméket tartalmazó rendelésnél a rendszer a kiválasztott bizonylattípust állítja ki a normál (számla/díjbekérő/piszkozat) beállítás helyett — függetlenül attól, hogy a rendelésben szerepelnek-e más, nem felülírt termékek is. A többi termékre/rendelésre nincs hatással. Prioritási sorrend: 1) kézzel, a rendelés oldalon kiválasztott bizonylattípus mindig elsőbbséget élvez, 2) ha nincs kézi választás, ez a termék-szintű felülírás érvényesül, 3) ha egyik sincs beállítva, a normál automatikus/kézi alapbeállítás szerint történik a számlázás. Ha egy rendelésben több, eltérő felülírással rendelkező termék is szerepel, a tételek sorrendjében az első felülírás érvényesül.', 'billingo'),
+                    'desc_tip' => true,
+                    'options' => [
+                        '' => __('Nincs felülírás', 'billingo'),
+                        'invoice' => __('Számla', 'billingo'),
+                        'proforma' => __('Díjbekérő', 'billingo'),
+                        'draft' => __('Piszkozat', 'billingo'),
+                        'advance' => __('Előlegszámla', 'billingo'),
+                    ],
+                    'value' => $current,
+                ]);
+                ?>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Elmenti a termékenkénti bizonylattípus-felülírást.
+     */
+    public static function save_billingo_product_document_type(int $post_id): void
+    {
+        if (!isset($_POST['_billingo_document_type_override'])) {
+            return;
+        }
+
+        $value = sanitize_text_field(wp_unslash($_POST['_billingo_document_type_override']));
+        $allowed = ['', 'invoice', 'proforma', 'draft', 'advance'];
+
+        if (!in_array($value, $allowed, true)) {
+            return;
+        }
+
+        update_post_meta($post_id, '_billingo_document_type_override', $value);
     }
 
     /**
@@ -62,6 +197,50 @@ trait Admin_Init
     {
         $settings_tabs['settings_tab_billingo'] = __('Billingo', 'billingo');
         return $settings_tabs;
+    }
+
+    /**
+     * A WooCommerce beállítások oldal "Billingo" fülén a sima szöveges felirat helyett
+     * a teljes Billingo logót (szómárka) jelenítjük meg. A felirat a DOM-ban megmarad
+     * (képernyőolvasóknak, kereshetőségnek), csak vizuálisan takarjuk el egy
+     * háttérkép-logóval.
+     *
+     * FONTOS: a szelektor kizárólag a fenti, FŐ WooCommerce fülsorra vonatkozhat —
+     * a plugin saját belső al-fül navigációja (_sub_navigation.twig: API/Számla/ÁFA/
+     * E-mail/Fizetés/Támogatás) is "nav-tab-wrapper"/"nav-tab" osztályú <a> elemeket
+     * használ, és ezek href-je is tartalmazza a "tab=settings_tab_billingo" részt
+     * (csak "&subsection=..."-nal kiegészítve). Emiatt [href*=...] helyett
+     * [href$=...] ("végződik erre") kell, mert csak a fő fül URL-je végződik pontosan
+     * "tab=settings_tab_billingo"-val, az al-füleké nem.
+     */
+    public static function add_settings_tab_styles(): void
+    {
+        $screen = get_current_screen();
+
+        if (!$screen || $screen->id !== 'woocommerce_page_wc-settings') {
+            return;
+        }
+
+        $logo_url = esc_url(plugins_url('/../admin/images/billingo-logo-full.svg', __FILE__));
+
+        echo '<style>
+            .nav-tab-wrapper a.nav-tab[href$="tab=settings_tab_billingo"] {
+                color: #1d2327 !important;
+                font-weight: 600 !important;
+                text-indent: -9999px !important;
+                background-image: url(' . $logo_url . ') !important;
+                background-repeat: no-repeat !important;
+                background-position: center !important;
+                background-size: auto 26px !important;
+                min-width: 120px;
+                padding-top: 4px !important;
+                padding-bottom: 4px !important;
+            }
+            .nav-tab-wrapper a.nav-tab[href$="tab=settings_tab_billingo"]:hover,
+            .nav-tab-wrapper a.nav-tab[href$="tab=settings_tab_billingo"].nav-tab-active {
+                color: #000 !important;
+            }
+        </style>';
     }
 
     /**
@@ -154,11 +333,29 @@ trait Admin_Init
 
         $isApiKeyMissing = !get_option('wc_billingo_api_key');
 
-        // Get the current invoice document
-        $databaseRecord = $repository
-                ->where('order_id', $order_id)
-                ->where('type', TypeEnum::INVOICE->value)
-                ->first();
+        // Get the most recent (non-cancelled) document for this order, regardless of
+        // type (invoice, proforma, draft, advance, ...) — so a newly generated
+        // non-"invoice" document (pl. egy automatikus előlegszámla) is szintén itt
+        // jelenjen meg, ne csak a lenti "Korábbi dokumentumok" listában.
+        //
+        // A "cancellation" (sztornó) típusú rekordot kizárjuk a jelöltek közül: a saját
+        // canceled_by mezője sosem töltődik ki (a sztornó önmagát nem "törli"), ezért
+        // enélkül a szűrés nélkül egy korábban sztornózott rendelésnél a sztornó-rekord
+        // tűnne fel elsődleges dokumentumként egy azóta kiállított, érvényes számla
+        // helyett — és emiatt a "Sztornózás" gomb is eltűnne az érvényes számláról.
+        $orderDocuments = array_filter(
+            $repository->where('order_id', $order_id)->get() ?? [],
+            fn($doc) => ($doc['type'] ?? null) !== TypeEnum::CANCELLATION->value
+        );
+
+        $databaseRecord = null;
+        if (!empty($orderDocuments)) {
+            $orderDocuments = array_values($orderDocuments);
+            usort($orderDocuments, function ($a, $b) {
+                return strcmp($b['created_at'] ?? '', $a['created_at'] ?? '');
+            });
+            $databaseRecord = $orderDocuments[0];
+        }
 
         // Get all documents for this order
         $repository->withCanceled();
@@ -227,6 +424,7 @@ trait Admin_Init
                 'defaultDocumentType' => $defaultDocumentType,
                 'wcData' => $wcData,
                 'allDocuments' => $processedDocuments,
+                'manualIdCheckEnabled' => wcFlexibleIsTrue(get_option('wc_billingo_manual_id_check_enabled')),
         ]);
     }
 

@@ -15,8 +15,26 @@ class Billingo_Logger
             mkdir($logdir, 0777, true);
         }
 
+        self::protectLogDirectory($logdir);
+
         $this->date = gmdate('Y-m-d');
         $this->fileName = "{$logdir}/{$this->date}.txt";
+    }
+
+    /**
+     * Megakadályozza, hogy a naplófájlok közvetlenül elérhetőek legyenek a weben keresztül.
+     */
+    private static function protectLogDirectory(string $logdir): void
+    {
+        $htaccessFile = "{$logdir}/.htaccess";
+        if (!file_exists($htaccessFile)) {
+            file_put_contents($htaccessFile, "Require all denied\nDeny from all\n");
+        }
+
+        $indexFile = "{$logdir}/index.php";
+        if (!file_exists($indexFile)) {
+            file_put_contents($indexFile, "<?php\n// Silence is golden.\n");
+        }
     }
 
     public static function info(string $message): void

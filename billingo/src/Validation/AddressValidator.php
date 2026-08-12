@@ -15,9 +15,9 @@ class AddressValidator extends Validator
                 'string',
                 ['in', getEnumValues(CountryEnum::class)],
             ],
-            'post_code' => [['required', true], 'string'],
-            'city' => [['required', true], 'string'],
-            'address' => [['required', true], 'string'],
+            'post_code' => ['required', 'string'],
+            'city' => ['required', 'string'],
+            'address' => ['required', 'string'],
         ];
     }
 }

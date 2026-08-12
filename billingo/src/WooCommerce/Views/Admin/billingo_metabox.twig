@@ -46,7 +46,25 @@
                     {{ 'Alapértelmezett típus: ' | esc_html_translate }}{{ defaultDocumentType }}
                 </p>
                 <a href="#" id="wc_billingo_options">{{ 'Opciók ' | esc_html_translate }}</a>
+                {% if manualIdCheckEnabled %}
+                <br>
+                <a href="#" id="wc_billingo_manual_check_toggle" style="font-size: 11px;">{{ 'Már létezik bizonylat a Billingóban? Ellenőrzés ID alapján' | esc_html_translate }}</a>
+                {% endif %}
             </div>
+            {% if manualIdCheckEnabled %}
+            <div id="wc_billingo_manual_check_form" style="display:none; margin-top: 10px;">
+                <p style="font-size: 11px; color: #666;">
+                    {{ 'Ha a "Duplicate vendor id" hibát kaptad, valószínűleg már létrejött egy bizonylat a Billingo oldalán ehhez a rendeléshez, csak a helyi nyilvántartásba nem került be. Keresd meg a Billingo felületén a bizonylatot, és ha szükséges, sztornózd ott — utána itt add meg a bizonylat azonosítóját (ID, a Billingo admin felület URL-jében található szám) az ellenőrzéshez és a helyi szinkronizáláshoz.' | esc_html_translate }}
+                </p>
+                <input type="text" id="wc_billingo_manual_billingo_id" placeholder="{{ 'Billingo bizonylat ID' | esc_html_translate }}" />
+                <a href="#"
+                   id="wc_billingo_manual_check"
+                   data-order="{{ orderId }}"
+                   data-nonce="{{ nonce | esc_attr  }}"
+                   class="button button-secondary">{{ 'Ellenőrzés' | esc_html_translate }}
+                </a>
+            </div>
+            {% endif %}
             <div id="wc_billingo_options_form" style="display:none;">
                 <div class="fields">
                     <h4>{{ 'Megjegyzés' | esc_html_translate }}</h4>

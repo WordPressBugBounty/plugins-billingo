@@ -23,8 +23,7 @@ class DocumentItemFactory extends BaseFactory
             'entitlement' => $this->faker->randomElement(getEnumValues(EntitlementEnum::class)),
             'comment' => $this->faker->sentence(),
             'sku' => $this->faker->bothify('SKU-####'),
-            'is_generate_erase_code' => $this->faker
-                ->regexify('[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{4},[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{4}'),
+            'is_generate_erase_code' => $this->faker->boolean(),
         ];
     }
 }

@@ -1,4 +1,25 @@
 # Changelog
+-**4.3.3** - 2026.08.
+* New feature: skip invoicing for 0 Ft orders (togglable setting)
+* New feature: currency-dependent invoice language (currency to language mapping)
+* New feature: live NAV tax number validation at checkout (togglable setting)
+* New feature: partner tax type automatically set to company when a tax number is provided
+* New feature: per-product document type override (invoice/proforma/draft/advance selectable per product). Priority order: 1) manually selected type on the order page, 2) product-level override, 3) normal automatic/manual default setting
+* Vendor_id logic changed so re-invoicing after a cancelled (stornó) invoice is no longer blocked by Billingo
+* Product original price meta is still saved but no longer shown in order details
+* Critical fix: fatal error on validation failure (SelfTest object misuse)
+* Critical fix: fatal error on nested document model self-check (private trait method)
+* Fix: fatal error on network errors during API communication
+* Fix: invalid VAT override setting now stops document generation with an admin warning, instead of creating a wrong invoice
+* Security fix: privilege escalation in email settings save
+* Fix: proforma-to-invoice conversion (was always creating a new invoice instead of converting)
+* Fix: cancellation (stornó) AJAX fatal error on missing data
+* Fix: log directory is no longer publicly accessible over the web
+* Fix: tax number check and legacy ID API endpoint URLs
+* Fix: several validation/model field-name bugs (partner, item, address)
+* Fix: product sync pagination (duplicate products created above 100 items)
+* Fix: "Billingo" tab label readability on the WooCommerce Settings page
+
 -**4.3.2** - 2026.05.
 * Fees tax woo update
 * WP 7.0 compatible changes

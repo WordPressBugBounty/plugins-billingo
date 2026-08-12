@@ -29,12 +29,12 @@ class UtilApi extends BillingoApi
 
         if ($validationCheck->hasError()) {
 
-            throw new BadContentException(esc_html( $validationCheck->getSelfTest()));
+            throw new BadContentException($validationCheck->getSelfTest());
         }
 
         $this->apiContext
             ->setMethod(HttpMethodEnum::GET)
-            ->setUrl(self::PREFIX . "check-tax-number/{$taxNumber}");
+            ->setUrl(self::PREFIX . "/check-tax-number/{$taxNumber}");
 
         return $this->send();
     }
@@ -50,7 +50,7 @@ class UtilApi extends BillingoApi
 
         $this->apiContext
             ->setMethod(HttpMethodEnum::GET)
-            ->setUrl(self::PREFIX . "convert-legacy-id/{$id}");
+            ->setUrl(self::PREFIX . "/convert-legacy-id/{$id}");
 
         return $this->send();
     }

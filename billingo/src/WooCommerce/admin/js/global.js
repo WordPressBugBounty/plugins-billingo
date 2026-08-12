@@ -95,6 +95,16 @@ jQuery(document).ready(function ($) {
         updateTaxOverrideFields();
     });
 
+    function updateCurrencyLangMapVisibility() {
+        let enabled = $("#wc_billingo_invoice_lang_by_currency_enabled").is(":checked");
+        $("#billingo_currency_lang_map_row").css("display", enabled ? "table-row" : "none");
+    }
+
+    if ($("#wc_billingo_invoice_lang_by_currency_enabled").length) {
+        updateCurrencyLangMapVisibility();
+        $("#wc_billingo_invoice_lang_by_currency_enabled").change(updateCurrencyLangMapVisibility);
+    }
+
     jQuery("#wc_billingo_generate").click(function (e) {
         e.preventDefault();
         let r = confirm("Biztosan létrehozod a számlát?");
@@ -163,6 +173,70 @@ jQuery(document).ready(function ($) {
     jQuery("#wc_billingo_options").click(function () {
         jQuery("#wc_billingo_options_form").slideToggle();
         return false;
+    });
+
+    jQuery("#wc_billingo_manual_check_toggle").click(function (e) {
+        e.preventDefault();
+        jQuery("#wc_billingo_manual_check_form").slideToggle();
+    });
+
+    jQuery("#wc_billingo_manual_check").click(function (e) {
+        e.preventDefault();
+
+        let manualId = jQuery("#wc_billingo_manual_billingo_id").val();
+        if (!manualId) {
+            alert("Add meg a Billingo bizonylat ID-ját.");
+            return false;
+        }
+
+        let nonce = jQuery(this).data("nonce");
+        let order = jQuery(this).data("order");
+        let button = jQuery("#wc_billingo_manual_check");
+
+        let data = {
+            action: "wc_billingo_storno_invoice",
+            nonce: nonce,
+            order: order,
+            manual_billingo_id: manualId
+        };
+
+        button.block({
+            message: null,
+            overlayCSS: {
+                background: "#fff url(" + wc_billingo_params.loading + ") no-repeat center",
+                backgroundSize: "16px 16px",
+                opacity: 0.6
+            }
+        });
+
+        jQuery.post(ajaxurl, data, function (response) {
+            jQuery(".wc-billingo-message").remove();
+
+            if (response.data.error) {
+                button.before('<div class="wc-billingo-error error wc-billingo-message"></div>');
+            } else {
+                button.before('<div class="wc-billingo-success updated wc-billingo-message"></div>');
+            }
+
+            let ul = jQuery("<ul>");
+            jQuery.each(response.data.messages, function (i, value) {
+                let li = jQuery("<li>");
+                li.append(value);
+                ul.append(li);
+            });
+            jQuery(".wc-billingo-message").append(ul);
+
+            button.unblock();
+
+            if (!response.data.error) {
+                // A metabox teljes állapota (bizonylat adatai, gombok) a szerver oldali
+                // renderelt nézettől függ, ezért egyszerűbb és megbízhatóbb egy frissítés,
+                // mint a DOM manuális összefésülése.
+                setTimeout(function () {
+                    location.reload();
+                }, 1500);
+            }
+        });
     });
 
     jQuery("#wc_billingo_already").click(function (e) {

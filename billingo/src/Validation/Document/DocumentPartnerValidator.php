@@ -14,8 +14,8 @@ class DocumentPartnerValidator extends Validator
     {
         return [
             'id' => ['optional', 'integer'],
-            'name' => ['isset', 'string'],
-            'address' => ['isset', ['instanceOf', Address::class]],
+            'name' => ['required', 'string'],
+            'address' => ['required', ['instanceOf', Address::class]],
             'emails' => ['optional', 'array'],
             'emails.*' => ['email'],
             'taxcode' => ['optional', 'string'],

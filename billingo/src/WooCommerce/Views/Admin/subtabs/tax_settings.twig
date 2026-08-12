@@ -573,6 +573,22 @@
                                     <p class="billingo-field-description-italic">{{ 'A választott ÁFA kulcshoz kötelező a megadott jogcímekből választani.'|esc_html_translate }}</p>
                                 </td>
                             </tr>
+
+                            <tr valign="top">
+                                <th scope="row">
+                                    <label class="billingo-field-name" for="wc_billingo_fee_vat_override">{{ 'Tranzakciós díj (fee) ÁFA kulcsa'|esc_html_translate }}</label>
+                                </th>
+                                <td class="forminp forminp-select">
+                                    <select class="billingo-tax-settings-select" name="wc_billingo_fee_vat_override"
+                                        id="wc_billingo_fee_vat_override" style="width:350px;">
+                                        {% for id, name in fee_vat_options %}
+                                        <option value="{{ id }}" {% if id==selected_fee_vat_override
+                                            %}selected="selected" {% endif %}>{{ name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <p class="billingo-field-description-italic">{{ 'Ha kiválasztasz egy kulcsot, minden fee tétel ezzel kerül a számlára, az automatikus azonosítás helyett.'|esc_html_translate }}</p>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>

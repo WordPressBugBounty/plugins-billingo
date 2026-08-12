@@ -3,9 +3,11 @@
 namespace App\Billingo\WooCommerce\Service;
 
 use App\Billingo\Enums\Document\TypeEnum;
+use App\Billingo\Enums\EntitlementEnum;
 use App\Billingo\Enums\PaymentMethodEnum;
 use App\Billingo\Enums\UnitPriceTypeEnum;
 use App\Billingo\Enums\Document\LanguageEnum;
+use App\Billingo\Enums\Partner\TaxTypeEnum;
 use App\Billingo\Enums\VatEnum;
 use App\Billingo\Exceptions\BadContentException;
 use App\Billingo\Models\Document\DocumentInsert;
@@ -14,6 +16,7 @@ use App\Billingo\Models\Partner\Partner;
 use App\Billingo\Service\BillingoClient;
 use Symfony\Component\HttpFoundation\Response;
 use App\Billingo\WooCommerce\Service\Billingo_Product_Sync;
+use App\Billingo\WooCommerce\Repositories\Billingo_Repositroy;
 use App\Billingo\Enums\CurrencyEnum;
 use App\Billingo\Api\CurrencyApi;
 use WC_Order;
@@ -29,12 +32,24 @@ class Billingo_Document_Generator
     private array $documentData;
     private ?string $documentTypeCallback;
     private ?string $currentDocumentType = null;
+    private bool $taxOverrideFailed = false;
+    private ?string $lastError = null;
 
     public function __construct(int $orderId, private readonly ?array $manualIncome = null)
     {
         $this->client = new BillingoClient(get_option('wc_billingo_api_key', ''));
         $this->order = wc_get_order($orderId);
         $this->documentTypeCallback = $this->selectCallback();
+    }
+
+    /**
+     * A generálás sikertelensége esetén a tényleges okot adja vissza (ember által
+     * olvasható formában), hogy a manuális generálás felülete ne csak egy általános
+     * "sikertelen generálás" üzenetet mutasson.
+     */
+    public function getLastError(): ?string
+    {
+        return $this->lastError;
     }
 
     public function get(): ?DocumentInsert
@@ -46,7 +61,13 @@ class Billingo_Document_Generator
 
         $callback = $this->documentTypeCallback;
 
-        return is_null($callback) ? null : $this->$callback();
+        if (is_null($callback)) {
+            $this->lastError = __('Nincs érvényes bizonylattípus kiválasztva a beállításokban (számla/díjbekérő/piszkozat).', 'billingo');
+
+            return null;
+        }
+
+        return $this->$callback();
     }
 
     public function getInvoice(): ?DocumentInsert
@@ -82,6 +103,11 @@ class Billingo_Document_Generator
         return $this->make(TypeEnum::DRAFT);
     }
 
+    public function getAdvance(): ?DocumentInsert
+    {
+        return $this->make(TypeEnum::ADVANCE);
+    }
+
     private function make(TypeEnum $type): ?DocumentInsert
     {
         Billingo_Logger::info('Order ID: ' . $this->order->get_id());
@@ -90,6 +116,17 @@ class Billingo_Document_Generator
 
         $this->collectDocumentData();
 
+        if ($this->taxOverrideFailed) {
+            $this->lastError = __('Az ÁFA felülírás be van kapcsolva, de nincs érvényes ÁFA érték kiválasztva a beállításoknál.', 'billingo');
+            Billingo_Logger::error(ucfirst($type->value) . " " . $this->order->get_id() . " számú rendelés esetében a számlázás megszakítva: " . $this->lastError);
+
+            add_action('admin_notices', function () {
+                echo '<div class="error notice"><p>' . esc_html__('A Billingo áfa felülírás be van kapcsolva, de nincs érvényes áfa érték kiválasztva a beállításoknál. A számla/díjbekérő generálása emiatt megszakadt.', 'billingo') . '</p></div>';
+            });
+
+            return null;
+        }
+
         $this->documentData['type'] = $type->value;
         if($type->value != 'invoice'){
             unset($this->documentData['vendor_id']);
@@ -97,6 +134,7 @@ class Billingo_Document_Generator
         if($this->documentData['skipcreatedocuments'] == 0){
             $document = new DocumentInsert($this->documentData);
         } else {
+            $this->lastError = __('A számlázás ki van kapcsolva ehhez a fizetési módhoz a beállításokban.', 'billingo');
             Billingo_Logger::error(ucfirst($type->value) . " " .  $this->order->get_id() . " számú rendelés esetében a számlázás kikapcsolva.");
             return null;
         }
@@ -104,8 +142,13 @@ class Billingo_Document_Generator
         if ($document->hasError()) {
 
             $errors = $document->getErrors();
+            $detailedMessage = $this->flattenErrorMessage($document->getSelfTest()->getErrors() ?? []);
+            $this->lastError = $detailedMessage !== ''
+                ? $detailedMessage
+                : __('A rendelés/bizonylat adatai hiányosak vagy érvénytelenek.', 'billingo');
             Billingo_Logger::error(ucfirst($type->value) . " generation: FAIL {$errors->getType()->value} "
-                . (empty($errors->getValues()) ? '' : json_encode($errors->getValues())));
+                . (empty($errors->getValues()) ? '' : json_encode($errors->getValues()))
+                . ' | Részletes hiba: ' . $this->lastError);
             return null;
         } else {
 
@@ -119,6 +162,41 @@ class Billingo_Document_Generator
         }
         Billingo_Logger::info('Document: ' . json_encode($document));
         return $document;
+    }
+
+    /**
+     * A getSelfTest()->getErrors() beágyazott, tetszőleges mélységű tömböt ad vissza,
+     * aminek levelei BillingoError objektumok — ez egy rövid, ember által olvasható
+     * szöveggé alakítja, hogy a manuális generálás felülete a tényleges hibaokot tudja
+     * megjeleníteni az általános "sikertelen generálás" üzenet helyett.
+     */
+    private function flattenErrorMessage(array $errors, string $prefix = ''): string
+    {
+        $messages = [];
+
+        foreach ($errors as $key => $value) {
+            $path = $prefix === '' ? (string)$key : $prefix . '.' . $key;
+
+            if ($value instanceof \App\Billingo\Error\BillingoError) {
+                $fieldMessages = $value->getValues();
+
+                if (!empty($fieldMessages)) {
+                    foreach ($fieldMessages as $field => $fieldErrors) {
+                        $messages[] = $path . '.' . $field . ': ' . implode(', ', (array)$fieldErrors);
+                    }
+                } else {
+                    $messages[] = $path . ': ' . $value->getType()->value;
+                }
+            } elseif (is_array($value)) {
+                $nested = $this->flattenErrorMessage($value, $path);
+
+                if ($nested !== '') {
+                    $messages[] = $nested;
+                }
+            }
+        }
+
+        return implode(' | ', $messages);
     }
 
     private function collectDocumentData(): void
@@ -150,7 +228,7 @@ class Billingo_Document_Generator
         Billingo_Logger::info('Bank account ID: ' . ($bankAccountId ?: 'not set (using default)') . ' Currency: ' . $this->order->get_currency() );
         $document = [
             'skipcreatedocuments' => get_option("wc_billingo_doff_{$this->order->get_payment_method()}",0),
-            'vendor_id'=> (string)$this->order->get_id(),
+            'vendor_id'=> $this->buildVendorId(),
             'partner_id' => $this->findOrCreatePartner($this->getPartnerName()),
             'block_id' => (int)get_option('wc_billingo_invoice_block'),
             'bank_account_id' => $bankAccountId,
@@ -174,6 +252,35 @@ class Billingo_Document_Generator
         ];
 
         $this->documentData = $document;
+    }
+
+    /**
+     * A Billingo a vendor_id alapján szűri a duplikált beküldéseket a saját oldalán. Ha ez
+     * mindig ugyanaz maradna (pl. csak a rendelés ID), akkor egy sztornózott számla utáni
+     * új, jogos számla kiállítása is duplikátumnak tűnne az API számára és elutasításra kerülne
+     * — miközben a plugin saját DB-ellenőrzése (Billingo_Controller::createDocument()) már
+     * helyesen engedélyezné az új bizonylatot. Ezért a vendor_id-t a rendeléshez tartozó,
+     * ugyanolyan típusú, korábban ténylegesen létrehozott (akár sztornózott) bizonylatok
+     * számával tesszük egyedivé, típusonként külön sorszámozva.
+     *
+     * Ha ugyanahhoz az állapothoz (még egyetlen bizonylat sem jött létre) két kérés fut be
+     * egymás után (pl. verseny­helyzet), a vendor_id ugyanaz marad, így a Billingo oldali
+     * duplikátumszűrés ebben az esetben továbbra is védelmet nyújt.
+     */
+    private function buildVendorId(): string
+    {
+        $orderId = $this->order->get_id();
+        $type = $this->currentDocumentType ?? 'document';
+
+        $previousCount = count(
+            (new Billingo_Repositroy())
+                ->withCanceled()
+                ->where('order_id', $orderId)
+                ->where('type', $type)
+                ->get()
+        );
+
+        return $orderId . '-' . $type . '-' . ($previousCount + 1);
     }
 
     private function resolvePaidType(): bool
@@ -275,6 +382,7 @@ class Billingo_Document_Generator
         // Add VAT number to partner data if available
         if (!empty($vatNumber)) {
             $descriptions['taxcode'] = $vatNumber;
+            $descriptions['tax_type'] = TaxTypeEnum::HAS_TAX_NUMBER->value;
             Billingo_Logger::info("VAT number found for partner: {$name}");
         }
 
@@ -649,6 +757,13 @@ class Billingo_Document_Generator
             $itemObject = $item;
             $itemData = $item->get_data();
             $product = $item->get_product();
+            // A WooCommerce "Adóstátusz: Nincs" (tax_status = 'none') beállítása a terméken
+            // teljesen független a tax_class-tól — a getCalculatedDateForItem() ez alapján
+            // dönti el, hogy a normál tax_class-alapú ÁFA-számítás helyett a terméket
+            // adómentesként kezelje.
+            $itemData['tax_status'] = ($product && method_exists($product, 'get_tax_status'))
+                ? $product->get_tax_status()
+                : 'taxable';
 
             // Ellenőrizzük, hogy bundle részterméke-e vagy bundle főtermék-e
             $bundledBy = wc_get_order_item_meta($item->get_id(), '_bundled_by', true);
@@ -828,25 +943,29 @@ class Billingo_Document_Generator
                     $feeVatCode = $this->getFeeVatCode($fee);
 
                     Billingo_Logger::info('Fee ÁFA kulcs: ' . $feeVatCode->value);
-                    $firstItem = reset($items);
-                    $firstItemData = $firstItem ? $firstItem->get_data() : null;
-                    if(!$feeVatCode){
-                        $vatCode = $firstItemData ? $this->getCalculatedDateForItem('vat', $firstItemData)->value ?? VatEnum::PERCENT_27->value : VatEnum::PERCENT_0->value;
-                    }else{
-                        $vatCode = $feeVatCode->value;
-                    }
-                    // A bruttó összeg kiszámítása
-                    
-                    
-                    Billingo_Logger::info('Fee ÁFA kulcs: ' . $feeVatCode->value);
 
-                    if($feeTax != 0 && (!wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax')) || $vatCode != $feeVatCode->value  )) {
+                    $hasManualFeeVatOverride = !empty(get_option('wc_billingo_fee_vat_override', ''));
+                    // A WooCommerce "Az árak ÁFA-val vannak megadva" globális beállítása dönti el,
+                    // hogy a fee összege (feeTotal) már eleve bruttó-e — ha igen, nem szabad még
+                    // egyszer rátenni az ÁFA-t, mert "szuper bruttósítást" (duplázott ÁFA) okozna.
+                    $pricesIncludeTax = wcFlexibleIsTrue(get_option('woocommerce_prices_include_tax'));
+
+                    if (!$hasManualFeeVatOverride && $feeTax != 0) {
+                        // Nincs kézi felülírás, és a WooCommerce már kiszámolt valós ÁFA összeget
+                        // erre a fee-re — megbízunk a WC saját számításában.
                         $grossAmount = $feeTotal + $feeTax;
-                        $usedvatcode = $vatCode;
                     } else {
-                        $grossAmount = $feeTotal * (1 + ($feeVatCode->value ?? 0) / 100);
-                        $usedvatcode = $feeVatCode->value;
+                        // Kézi felülírás esetén, vagy ha a WC nem számolt ÁFA-t a fee-re, a
+                        // meghatározott (felülírt vagy automatikusan azonosított) kulcs alapján
+                        // bruttósítunk — de csak akkor, ha az árak ténylegesen nettóban vannak
+                        // megadva, egyébként a feeTotal-t változatlanul, bruttóként használjuk.
+                        $vatRate = $this->getVatRateFromCode($feeVatCode->value);
+                        $grossAmount = $pricesIncludeTax
+                            ? $feeTotal
+                            : $feeTotal * (1 + $vatRate / 100);
                     }
+
+                    $usedvatcode = $feeVatCode->value;
 
                     $feeItem = new DocumentProductData([
                         'name' => !empty($feeName)
@@ -945,6 +1064,22 @@ class Billingo_Document_Generator
         'Fee ÁFA kulcs meghatározása - Fee objektum típusa: ' .
         (is_object($fee) ? get_class($fee) : gettype($fee))
     );
+
+    // 0) Admin által kézzel beállított, kötelező ÁFA kulcs a fee-khez — ha be van
+    // állítva, ez mindig elsőbbséget élvez az automatikus (gyakran megbízhatatlan,
+    // mert sok fizetési/fee modul hibásan állítja be a saját ÁFA-adatait) kikövetkeztetés
+    // helyett.
+    $feeVatOverride = get_option('wc_billingo_fee_vat_override', '');
+
+    if (!empty($feeVatOverride)) {
+        $vatEnum = VatEnum::tryFrom($feeVatOverride);
+
+        if ($vatEnum) {
+            Billingo_Logger::info('Fee ÁFA kulcs admin felülírás alapján: ' . $vatEnum->value);
+
+            return $vatEnum;
+        }
+    }
 
     // 1) Próbáljuk a rate_id-t kinyerni a get_taxes() struktúrából
     if ($fee && method_exists($fee, 'get_taxes')) {
@@ -1226,6 +1361,20 @@ class Billingo_Document_Generator
 
     private function getCalculatedDateForItem(string $dataName, array $item = null, string $countryCode = null): mixed
     {
+        // A WooCommerce termék "Adóstátusz: Nincs" (tax_status = 'none') beállítása azt
+        // jelenti, hogy a termékre soha nem számítunk fel ÁFA-t — ez FÜGGETLEN a tax_class-tól
+        // (ami csak azt mondja meg, MELYIK kulcsot használjuk, HA a termék egyáltalán
+        // adóköteles). A korábbi kód csak a tax_class-t nézte, a tax_status-t figyelmen kívül
+        // hagyta, így egy "Nincs" adóstátuszú termék is a normál (pl. 27%-os) ÁFA-kulcsot
+        // kapta a számlán.
+        if (($dataName === 'vat' || $dataName === 'entitlement') && !is_null($item) && ($item['tax_status'] ?? 'taxable') !== 'taxable') {
+            $exemptCode = get_option('wc_billingo_tax_override_zero_entitlements') ?: EntitlementEnum::TAM->value;
+
+            return $dataName === 'vat'
+                ? (VatEnum::tryFrom($exemptCode) ?? VatEnum::TAM)
+                : (EntitlementEnum::tryFrom($exemptCode) ?? EntitlementEnum::TAM);
+        }
+
         if ($dataName == 'vat' && !is_null($item)) {
             $taxRate = WC_Tax::get_rates_for_tax_class($item['tax_class']);
             $count = count($taxRate);
@@ -1349,8 +1498,15 @@ class Billingo_Document_Generator
     private function selectCallback(): ?string
     {
         if (isset($this->manualIncome['invoice_type']) &&!empty($this->manualIncome['invoice_type'])){
+            // Kifejezett, kézi bizonylattípus-választás (admin felület) mindig elsőbbséget élvez.
             $settingsValue = $this->manualIncome['invoice_type'];
-        }else {
+        } elseif (($productOverride = $this->getProductDocumentTypeOverride()) !== null) {
+            // Ha a rendelésben van legalább egy, a termékoldalon bizonylattípus-felülírásra
+            // jelölt tétel, a teljes rendeléshez azt a típust állítjuk ki a normál auto/kézi
+            // beállítás helyett. Csak az ezt a terméket tartalmazó rendeléseket érinti, a
+            // többinél nincs változás.
+            $settingsValue = $productOverride;
+        } else {
             $settingsValue = wcFlexibleIsTrue(get_post_meta($this->order->get_id(), '_is_manual', true))
                 ? get_option('wc_billingo_manual_type')
                 : get_option('wc_billingo_auto');
@@ -1362,9 +1518,38 @@ class Billingo_Document_Generator
             'invoice' => 'getInvoice',
             'proforma' => 'getProforma',
             'draft' => 'getDraft',
+            'advance' => 'getAdvance',
             default => null,
         };
 
+    }
+
+    /**
+     * Megvizsgálja, hogy a rendelés tartalmaz-e legalább egy olyan terméket, amelynél a
+     * termékszerkesztő "Számlázás" fülén bizonylattípus-felülírás van beállítva (számla/
+     * díjbekérő/piszkozat/előlegszámla), és ha igen, visszaadja az első ilyen felülírás
+     * értékét. Ha a rendelésben több termék is felülírással rendelkezik, az első (tétel-
+     * sorrend szerinti) találat érvényesül.
+     */
+    private function getProductDocumentTypeOverride(): ?string
+    {
+        $validOverrides = ['invoice', 'proforma', 'draft', TypeEnum::ADVANCE->value];
+
+        foreach ($this->order->get_items() as $item) {
+            $product = $item->get_product();
+
+            if (!$product) {
+                continue;
+            }
+
+            $override = get_post_meta($product->get_id(), '_billingo_document_type_override', true);
+
+            if (in_array($override, $validOverrides, true)) {
+                return $override;
+            }
+        }
+
+        return null;
     }
 
     private function isForbidden(): bool
@@ -1374,7 +1559,16 @@ class Billingo_Document_Generator
         // has child orders but is disabled
         if (wcFlexibleIsTrue(get_option('wc_billingo_block_child_orders')) && $this->order->get_parent_id() != 0) {
 
+            $this->lastError = __('A rendelés alrendelés, és az alrendelésekhez tartozó számlázás ki van kapcsolva a beállításokban.', 'billingo');
             Billingo_Logger::error('Document creation exits: Child orders are disabled');
+            $isForbidden = true;
+        }
+
+        // 0 Ft végösszegű rendelés, és a boltos kikapcsolta ezekre a számlázást
+        if (wcFlexibleIsTrue(get_option('wc_billingo_skip_zero_total')) && (float)$this->order->get_total() === 0.0) {
+
+            $this->lastError = __('A rendelés végösszege 0 Ft, és a 0 Ft-os rendelésekhez tartozó számlázás ki van kapcsolva a beállításokban.', 'billingo');
+            Billingo_Logger::info('Document creation exits: Order total is 0, and zero-total invoicing is disabled.');
             $isForbidden = true;
         }
 
@@ -1416,9 +1610,21 @@ class Billingo_Document_Generator
             ? get_option('wc_billingo_tax_override_zero_entitlements')
             : get_option('wc_billingo_tax_override_entitlements');
         Billingo_Logger::info('Áfa felülírás jogcím: ' . $entitlemet);
-        $value = $typeisZero
-            ? $entitlemet
-            : VatEnum::from(get_option('wc_billingo_tax_override_value'))->value;
+
+        if (!$typeisZero) {
+            $vatEnum = VatEnum::tryFrom(get_option('wc_billingo_tax_override_value'));
+
+            if ($vatEnum === null) {
+                Billingo_Logger::error('Áfa felülírás érték nincs beállítva vagy érvénytelen ezen a tételen, a generálás megszakad: ' . $item->name);
+                $this->taxOverrideFailed = true;
+
+                return $item;
+            }
+
+            $value = $vatEnum->value;
+        } else {
+            $value = $entitlemet;
+        }
         Billingo_Logger::info('Áfa felülírás ÁFA ÉRTÉKE: ' . $value);
 
         if (!$typeisZero) {
@@ -1608,6 +1814,38 @@ class Billingo_Document_Generator
         return 1.0;
     }
 
+    /**
+     * A "wc_billingo_invoice_lang_by_currency_map" beállítás soronként "DEVIZA=nyelvkód"
+     * formátumú párokat tartalmaz (pl. "EUR=de"). Visszaadja a rendelés devizájához tartozó
+     * nyelvet, ha van érvényes egyezés, egyébként null-t (ilyenkor a hívó a normál
+     * nyelv-meghatározási logikára esik vissza).
+     */
+    private function resolveLanguageFromCurrency(string $currency, array $validEnums): ?string
+    {
+        $map = get_option('wc_billingo_invoice_lang_by_currency_map', '');
+
+        if (empty($map) || empty($currency)) {
+            return null;
+        }
+
+        foreach (preg_split('/\r\n|\r|\n/', $map) as $line) {
+            $line = trim($line);
+
+            if ($line === '' || !str_contains($line, '=')) {
+                continue;
+            }
+
+            [$mappedCurrency, $mappedLang] = array_map('trim', explode('=', $line, 2));
+            $mappedLang = strtolower(substr($mappedLang, 0, 2));
+
+            if (strcasecmp($mappedCurrency, $currency) === 0 && in_array($mappedLang, $validEnums, true)) {
+                return $mappedLang;
+            }
+        }
+
+        return null;
+    }
+
     function get_order_language(WC_Order $order) : string
     {
         // --- ENUM lista ---
@@ -1625,6 +1863,15 @@ class Billingo_Document_Generator
         // Order type check
         if (!$order instanceof WC_Order) {
             return $default;
+        }
+
+        // Devizától függő számlanyelv engedélyezve?
+        if (wcFlexibleIsTrue(get_option('wc_billingo_invoice_lang_by_currency_enabled'))) {
+            $currencyLang = $this->resolveLanguageFromCurrency($order->get_currency(), $validEnums);
+
+            if (!is_null($currencyLang)) {
+                return $currencyLang;
+            }
         }
 
         // WPML alapú nyelvhasználat engedélyezve?

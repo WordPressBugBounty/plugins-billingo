@@ -62,7 +62,7 @@ class DocumentApi extends BillingoApi
 
         if ($document->hasError()) {
 
-            throw new BadContentException(esc_html( $document->getSelfTest()));
+            throw new BadContentException($document->getSelfTest());
         }
 
         $this->apiContext
@@ -87,7 +87,7 @@ class DocumentApi extends BillingoApi
 
         if ($receipt->hasError()) {
 
-            throw new BadContentException(esc_html( $receipt->getSelfTest()));
+            throw new BadContentException($receipt->getSelfTest());
         }
 
         $this->apiContext
@@ -113,7 +113,7 @@ class DocumentApi extends BillingoApi
 
         if ($receipt->hasError()) {
 
-            throw new BadContentException(esc_html( $receipt->getSelfTest()));
+            throw new BadContentException($receipt->getSelfTest());
         }
 
         $this->apiContext
@@ -168,7 +168,7 @@ class DocumentApi extends BillingoApi
 
         if ($document->hasError()) {
 
-            throw new BadContentException(esc_html( $document->getSelfTest()));
+            throw new BadContentException($document->getSelfTest());
         }
 
         $this->apiContext
@@ -283,7 +283,7 @@ class DocumentApi extends BillingoApi
 
         if ($modificationDocument->hasError()) {
 
-            throw new BadContentException(esc_html( $modificationDocument->getSelfTest()));
+            throw new BadContentException($modificationDocument->getSelfTest());
         }
 
         $this->apiContext
@@ -370,7 +370,7 @@ class DocumentApi extends BillingoApi
 
         if ($paymentHistory->hasError()) {
 
-            throw new BadContentException(esc_html( $paymentHistory->getSelfTest()));
+            throw new BadContentException($paymentHistory->getSelfTest());
         }
 
         $this->apiContext
@@ -456,7 +456,7 @@ class DocumentApi extends BillingoApi
 
         if ($sendDocument->hasError()) {
 
-            throw new BadContentException(esc_html( $sendDocument->getSelfTest()));
+            throw new BadContentException($sendDocument->getSelfTest());
         }
 
         $this->apiContext

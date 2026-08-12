@@ -3,12 +3,21 @@
 namespace App\Billingo\Error;
 
 use App\Billingo\Enums\BillingoErrorEnum;
+use JsonSerializable;
 
-class BillingoError
+class BillingoError implements JsonSerializable
 {
 
     public function __construct(private BillingoErrorEnum $type, private ?array $values)
     {
+    }
+
+    public function jsonSerialize(): array
+    {
+        return [
+            'type' => $this->type->value,
+            'values' => $this->values,
+        ];
     }
 
     public function getType(): BillingoErrorEnum

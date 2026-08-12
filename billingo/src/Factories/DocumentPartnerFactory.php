@@ -16,7 +16,7 @@ class DocumentPartnerFactory extends BaseFactory
             'name' => $this->faker->company(),
             'address' => Address::factory(),
             'emails' => [$this->faker->email(), $this->faker->email()],
-            'tax_code' => $this->faker->regexify('[0-9]{8}-[0-9]{1}-[0-9]{2}'),
+            'taxcode' => $this->faker->regexify('[0-9]{8}-[0-9]{1}-[0-9]{2}'),
             'iban' => $this->faker->iban(),
             'swift' => $this->faker->swiftBicNumber(),
             'account_number' => $this->faker->regexify('[A-Z]{2}--[0-9]{6}'),

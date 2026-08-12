@@ -6,5 +6,5 @@ enum PaymentStatusSpendingEnum: string
 {
     case ALL = 'all';
     case PAID = 'paid';
-    case UNPAID = 'unpaid ';
+    case UNPAID = 'unpaid';
 }

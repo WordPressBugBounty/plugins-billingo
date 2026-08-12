@@ -32,7 +32,7 @@ class DocumentExportApi extends BillingoApi
 
         if ($createDocumentExport->hasError()) {
 
-            throw new BadContentException(esc_html( $createDocumentExport->getSelfTest()));
+            throw new BadContentException($createDocumentExport->getSelfTest());
         }
 
         $this->apiContext

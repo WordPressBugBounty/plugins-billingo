@@ -26,7 +26,7 @@ class DocumentItemValidator extends Validator
             'entitlement' => ['optional', ['in', getEnumValues(EntitlementEnum::class)]],
             'comment' => ['optional', 'string'],
             'sku' => ['optional', 'string'],
-            'data_eraser_codes' => ['optional'],
+            'is_generate_erase_code' => ['optional', 'boolean'],
         ];
     }
 }

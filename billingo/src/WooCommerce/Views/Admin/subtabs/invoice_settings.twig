@@ -764,7 +764,36 @@
                                             vásárláskor" opció be van kapcsolva.'|e }}</p>
                                 </td>
                             </tr>
-                            
+
+                            <tr valign="top">
+                                <th scope="row" class="billingo-invoice-settings-field-container" style="vertical-align: baseline!important;">
+                                    <label class="billingo-field-name" for="wc_billingo_invoice_lang_by_currency_enabled">{{ 'Devizától függő számlanyelv'|esc_html_translate }}</label>
+                                </th>
+                                <td class="forminp-checkbox">
+                                    <fieldset>
+                                        <legend class="screen-reader-text"><span>{{ 'Devizától függő számlanyelv'|esc_html_translate }}</span></legend>
+                                        <label for="wc_billingo_invoice_lang_by_currency_enabled" class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="wc_billingo_invoice_lang_by_currency_enabled" name="wc_billingo_invoice_lang_by_currency_enabled" value="1" class="sr-only peer" {% if invoice_lang_by_currency_enabled=='1' %}checked="checked"{% endif %}>
+                                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        </label>
+                                    </fieldset>
+                                    <p class="billingo-field-description-italic">{{ 'Ha be van kapcsolva, a számla nyelvét a
+                                        rendelés devizaneme határozza meg az alábbi hozzárendelés alapján, a „Számla nyelve” alapbeállítás
+                                        helyett.'|esc_html_translate }}</p>
+                                </td>
+                            </tr>
+
+                            <tr valign="top" id="billingo_currency_lang_map_row" style="{% if invoice_lang_by_currency_enabled != '1' %}display: none;{% endif %}">
+                                <td colspan="2" style="padding-top: 15px;">
+                                    <label class="billingo-field-name" for="wc_billingo_invoice_lang_by_currency_map" style="display: block; width: auto; height: auto; white-space: nowrap; margin-bottom: 10px;">{{ 'Deviza → nyelv hozzárendelés'|esc_html_translate }}</label>
+                                    <textarea name="wc_billingo_invoice_lang_by_currency_map" id="wc_billingo_invoice_lang_by_currency_map" type="text"
+                                       class="billingo-invoice-settings-text-input-large" placeholder="EUR=de&#10;USD=en">{{ invoice_lang_by_currency_map|e }}</textarea>
+                                       <p class="billingo-field-description-italic">{{ 'Soronként egy „DEVIZA=nyelvkód” pár (pl. EUR=de). Csak akkor
+                                           érvényesül, ha a fenti „Devizától függő számlanyelv” opció be van kapcsolva. HUF-ra nem kell
+                                           sort felvenni, arra mindig a „Számla nyelve” alapbeállítás vonatkozik.'|esc_html_translate }}</p>
+                                </td>
+                            </tr>
+
                         </tbody>
                     </table>
                 </div>
@@ -956,11 +985,66 @@
                                     </fieldset>
                                 </td>
                             </tr>
-                            
+
                             <tr valign="top">
-                                <th scope="row" class="billingo-invoice-settings-field-container">
+                                <th scope="row" class="billingo-invoice-settings-field-container" style="vertical-align: top !important; padding-bottom: 15px;">
+                                    <label class="billingo-field-name-right-column" for="wc_billingo_skip_zero_total">{{ '0 Ft-os rendelések számlázásának kihagyása'|esc_html_translate }}</label>
+                                        <p class="billingo-field-description-italic-right-column" style="height: auto;">{{ 'Ha be van kapcsolva, a 0 Ft végösszegű
+                                            rendelésekhez nem készül automatikusan bizonylat.'|esc_html_translate }}</p>
+                                </th>
+                                <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
+                                    <fieldset>
+                                        <legend class="screen-reader-text"><span>{{ '0 Ft-os rendelések számlázásának kihagyása'|esc_html_translate }}</span></legend>
+                                        <label for="wc_billingo_skip_zero_total" class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="wc_billingo_skip_zero_total" name="wc_billingo_skip_zero_total" value="1" class="sr-only peer" {% if skip_zero_total=='1' %}checked="checked"{% endif %}>
+                                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        </label>
+                                    </fieldset>
+                                </td>
+                            </tr>
+
+                            <tr valign="top">
+                                <th scope="row" class="billingo-invoice-settings-field-container" style="vertical-align: top !important; padding-bottom: 15px;">
+                                    <label class="billingo-field-name-right-column" for="wc_billingo_vat_number_live_check">{{ 'Élő adószám-ellenőrzés (NAV)'|esc_html_translate }}</label>
+                                        <p class="billingo-field-description-italic-right-column" style="height: auto;">{{ 'Ha be van kapcsolva, a vásárló által
+                                            megadott adószámot a rendszer ellenőrzi a NAV nyilvántartásában, mielőtt a rendelés
+                                            leadható lenne. Csak formailag helyes adószámoknál fut le. API-hiba esetén nem blokkolja
+                                            a vásárlást.'|esc_html_translate }}</p>
+                                </th>
+                                <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
+                                    <fieldset>
+                                        <legend class="screen-reader-text"><span>{{ 'Élő adószám-ellenőrzés (NAV)'|esc_html_translate }}</span></legend>
+                                        <label for="wc_billingo_vat_number_live_check" class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="wc_billingo_vat_number_live_check" name="wc_billingo_vat_number_live_check" value="1" class="sr-only peer" {% if vat_number_live_check=='1' %}checked="checked"{% endif %}>
+                                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        </label>
+                                    </fieldset>
+                                </td>
+                            </tr>
+
+                            <tr valign="top">
+                                <th scope="row" class="billingo-invoice-settings-field-container" style="vertical-align: top !important; padding-bottom: 15px;">
+                                    <label class="billingo-field-name-right-column" for="wc_billingo_manual_id_check_enabled">{{ 'Kézi bizonylat-ellenőrzés Billingo ID alapján'|esc_html_translate }}</label>
+                                        <p class="billingo-field-description-italic-right-column" style="height: auto;">{{ 'Ha be van kapcsolva, a rendelés oldalon (ha nincs helyi bizonylat-rekord) megjelenik egy
+                                            lehetőség, ahol egy Billingo bizonylat ID megadásával ellenőrizhető és szinkronizálható a
+                                            sztornó állapot — pl. duplikált bizonylat-azonosító hiba esetén, vagy ha a bizonylat nem a
+                                            WooCommerce-en keresztül készült.'|esc_html_translate }}</p>
+                                </th>
+                                <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
+                                    <fieldset>
+                                        <legend class="screen-reader-text"><span>{{ 'Kézi bizonylat-ellenőrzés Billingo ID alapján'|esc_html_translate }}</span></legend>
+                                        <label for="wc_billingo_manual_id_check_enabled" class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="wc_billingo_manual_id_check_enabled" name="wc_billingo_manual_id_check_enabled" value="1" class="sr-only peer" {% if manual_id_check_enabled=='1' %}checked="checked"{% endif %}>
+                                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        </label>
+                                    </fieldset>
+                                </td>
+                            </tr>
+
+                            <tr valign="top">
+                                <th scope="row" class="billingo-invoice-settings-field-container" style="vertical-align: top !important; padding-bottom: 15px;">
                                     <label class="billingo-field-name-right-column" for="wc_billingo_vat_number_form_checkbox_custom">{{ 'Egyedi meta mezőt használok adószámhoz'|esc_html_translate }}</label>
-                                        <p class="billingo-field-description-italic-right-column">{{ '(pl.: WooCheckout vagy Custom WooCommerce Checkout Fields Editor pluginnel). Fixen meg fog jelenni a számlákon. Ha ezt az opciót használja, akkor a fentebb található "Adószám mező megjelenítése vásárláskor" opció bekapcsolása nem szükséges.'|e }}</p>
+                                        <p class="billingo-field-description-italic-right-column" style="height: auto;">{{ '(pl.: WooCheckout vagy Custom WooCommerce Checkout Fields Editor pluginnel). Fixen meg fog jelenni a számlákon. Ha ezt az opciót használja, akkor a fentebb található "Adószám mező megjelenítése vásárláskor" opció bekapcsolása nem szükséges.'|e }}</p>
                                 </th>
                                 <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
                                     <fieldset>

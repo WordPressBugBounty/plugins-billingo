@@ -204,62 +204,48 @@ class Billingo_Product_Sync
         //Billingo_Logger::info("Termék keresése a Billingo rendszerben: {$sku}");
         
         try {
-            // A legjobb megoldás: közvetlen kereső endpoint használata, ha létezik
-            // Először listázzuk az API metódusokat
             $productApi = $this->client->product();
-            $methods = get_class_methods($productApi);
-            //Billingo_Logger::info("Elérhető ProductApi metódusok: " . implode(", ", $methods));
-            
-            // Próbáljuk az összes terméket lekérni egy oldalon, majd iteráljunk rajtuk
-            $response = $productApi->getAll(['per_page' => 100])->getResponse();
-            
-            if (!$response || $response->getStatusCode() !== 200) {
-                Billingo_Logger::error("Hiba a termékek lekérésekor: " . ($response ? $response->getStatusCode() : 'Nincs válasz'));
-                return null;
-            }
-            
-            // A response típusának ellenőrzése
-            $data = $response->getData();
-            //Billingo_Logger::info("Válasz típusa: " . get_class($data));
-            
-            if ($data instanceof \App\Billingo\Service\BillingoCollection) {
-                // Gyűjtemény feldolgozása a BillingoCollection API-jával
-                Billingo_Logger::info("BillingoCollection feldolgozása");
-                
-                // Hány elem van a gyűjteményben?
-                $allItems = $data->get(); // Ez visszaadja az összes elemet
-                //Billingo_Logger::info("Talált termékek száma: " . count($allItems));
-                
-                // Most kigyűjtjük az SKU értékeket, hogy lássuk, mi van a termékekben
-                $skus = [];
-                foreach ($allItems as $item) {
-                    if (isset($item->sku)) {
-                        $skus[] = $item->sku;
-                    }
+            $foundProduct = null;
+            $page = 1;
+            $perPage = 100;
+
+            // Lapozva végigmegyünk a teljes terméklistán, amíg meg nem találjuk az SKU-t,
+            // vagy amíg el nem fogynak az oldalak (kevesebb elem jön vissza, mint amennyit kértünk).
+            do {
+                $response = $productApi->getAll(['page' => $page, 'per_page' => $perPage])->getResponse();
+
+                if (!$response || $response->getStatusCode() !== 200) {
+                    Billingo_Logger::error("Hiba a termékek lekérésekor ({$page}. oldal): " . ($response ? $response->getStatusCode() : 'Nincs válasz'));
+                    return null;
                 }
-                //Billingo_Logger::info("Talált SKU értékek: " . implode(", ", $skus));
-                
-                // Keressük a termékünket
-                $foundProduct = null;
-                
-                foreach ($allItems as $product) {
-                    // Debug információk
-                    //Billingo_Logger::info("Termék vizsgálata: " . json_encode(['id' => $product->id ?? 'nincs id', 'name' => $product->name ?? 'nincs név','sku' => $product->sku ?? 'nincs sku']));
-                    //hasonlítsuk össze a két sku-t
-                   //Billingo_Logger::info("SKU összehasonlítás: " . $product->sku . "==" . $sku);
-                    if (trim(strtolower($product->sku)) == trim(strtolower($sku))) {
+
+                $data = $response->getData();
+
+                if (!($data instanceof \App\Billingo\Service\BillingoCollection)) {
+                    Billingo_Logger::error("Nem támogatott válasz formátum: " . gettype($data));
+                    return null;
+                }
+
+                $items = $data->get();
+
+                foreach ($items as $product) {
+                    if (!isset($product->sku)) {
+                        continue;
+                    }
+
+                    // Minden bejárt terméket cache-elünk, hogy a következő SKU-keresés ne induljon újra elölről.
+                    $this->productCache[$product->sku] = $product;
+
+                    if ($foundProduct === null && trim(strtolower($product->sku)) === trim(strtolower($sku))) {
                         Billingo_Logger::info("Termék egyezés! SKU: {$sku}, ID: {$product->id}");
                         $foundProduct = $product;
-                        $this->productCache[$sku] = $product; // Mentsük a cache-be
-                        break;
                     }
                 }
-                
-                return $foundProduct;
-            } else {
-                Billingo_Logger::error("Nem támogatott válasz formátum: " . gettype($data));
-                return null;
-            }
+
+                $page++;
+            } while ($foundProduct === null && count($items) === $perPage);
+
+            return $foundProduct;
         } catch (\Exception $e) {
             Billingo_Logger::error("Kivétel a termék keresésekor: " . $e->getMessage());
             Billingo_Logger::error("Stack trace: " . $e->getTraceAsString());
@@ -293,9 +279,9 @@ class Billingo_Product_Sync
                 }
             }
             
-            // A BillingoCollection objektum 
+            // A BillingoCollection objektum
             //Billingo_Logger::info("sku értékek összehasonlítása if előtt: " . $existingProduct->sku . "==" . $sku);
-            if (trim(strtolower($existingProduct->sku)) === trim(strtolower($sku))) {
+            if ($existingProduct !== null && isset($existingProduct->sku) && trim(strtolower($existingProduct->sku)) === trim(strtolower($sku))) {
                 // Meglévő termék frissítése
         
                 $productId = $existingProduct->id;

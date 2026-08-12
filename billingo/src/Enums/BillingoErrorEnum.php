@@ -8,4 +8,5 @@ enum BillingoErrorEnum: string
     case VALIDATION_FAILED = 'Validation Failed';
     case BAD_CONTENT = 'Bad Content';
     case BAD_API_CONTEXT = 'Bad Api Context';
+    case NETWORK_ERROR = 'Network Error';
 }

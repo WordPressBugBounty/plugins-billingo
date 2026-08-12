@@ -6,5 +6,5 @@ enum FinancialFulfillmentHighlightEnum: string
 {
     case BASIC = 'basic';
     case HIGHLIGHTED = 'highlighted';
-    case PAID_STAMP = 'paid_stamp ';
+    case PAID_STAMP = 'paid_stamp';
 }

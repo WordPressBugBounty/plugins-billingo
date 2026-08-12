@@ -36,6 +36,24 @@ trait Standard_Init
 
         // Initialize product price saving hooks (always needed for orders)
         Billingo_Checkout_Fields::init_product_price_hooks();
+
+        // Az eredeti/kedvezményes ár mentése továbbra is megtörténik (a számlázási logika
+        // ezt használja), de ne jelenjen meg a rendelés részletes nézetében (admin és
+        // frontend/thank-you oldalon sem).
+        add_filter('woocommerce_hidden_order_itemmeta', [self::class, 'hide_billingo_price_order_item_meta']);
+    }
+
+    /**
+     * A Billingo által mentett eredeti/kedvezményes ár meta mezőket hozzáadja a
+     * WooCommerce "rejtett" rendelési tétel meta listájához, hogy azok az admin és a
+     * frontend rendelés-részletes nézetben se jelenjenek meg.
+     */
+    public static function hide_billingo_price_order_item_meta(array $hidden): array
+    {
+        $hidden[] = '_wc_billingo_product_full_price_without_sale';
+        $hidden[] = '_wc_billingo_product_full_price_with_sale';
+
+        return $hidden;
     }
 
     /**
@@ -159,9 +177,73 @@ trait Standard_Init
             ->where('order_id', $order_id)
             ->where('type', TypeEnum::INVOICE->value)
             ->first();
-        $billingo_id = $row_in_db['billingo_id'];
-        $response = ['error' => false];
+
+        // Ha nincs helyi rekord (pl. "Duplicate vendor id" hiba miatt — a bizonylat
+        // létrejött a Billingo oldalán, de a helyi mentés valamiért kimaradt), az admin
+        // manuálisan megadhatja a Billingo felületén látott bizonylat ID-ját, hogy
+        // ellenőrizni és szinkronizálni tudjuk, ahelyett hogy teljesen elakadna. Ez a
+        // funkció külön beállítással ki-/bekapcsolható; a szerver oldalon is ellenőrizzük
+        // (nem csak a felületen rejtjük el), hogy egy közvetlen POST kéréssel se lehessen
+        // megkerülni, ha a boltos kikapcsolta.
+        $manual_billingo_id = (isset($_POST['manual_billingo_id']) && wcFlexibleIsTrue(get_option('wc_billingo_manual_id_check_enabled')))
+            ? (int)sanitize_text_field(wp_unslash($_POST['manual_billingo_id']))
+            : 0;
+
+        if ((is_null($row_in_db) || empty($row_in_db['billingo_id'])) && empty($manual_billingo_id)) {
+            wp_send_json_error([
+                'error'    => true,
+                'messages' => [ __('Nem található érvényes számla ehhez a rendeléshez', 'billingo') ]
+            ]);
+            return;
+        }
+
         $client = new BillingoClient(get_option('wc_billingo_api_key'));
+
+        // Nincs helyi rekord, de van manuálisan megadott ID: itt NEM kezdeményezünk API-n
+        // keresztüli sztornózást (mert nem tudjuk biztosan, hogy a megadott ID valóban
+        // ehhez a rendeléshez tartozik) — csak leellenőrizzük a Billingón, hogy a bizonylat
+        // sztornózott állapotú-e, és ha igen, elmentjük helyileg, hogy új számla készülhessen.
+        if (is_null($row_in_db) && !empty($manual_billingo_id)) {
+            $byIdData = $client->document()->getById($manual_billingo_id)->getResponse()->getData();
+
+            if (!$byIdData || !is_object($byIdData) || !method_exists($byIdData, 'toArray')) {
+                wp_send_json_error([
+                    'error'    => true,
+                    'messages' => [ __('A megadott azonosítóval nem található bizonylat a Billingóban. Ellenőrizd, hogy helyesen írtad-e be az ID-t.', 'billingo') ]
+                ]);
+                return;
+            }
+
+            if (empty($byIdData->toArray()['cancelled'])) {
+                wp_send_json_error([
+                    'error'    => true,
+                    'messages' => [ __('A megadott bizonylat a Billingo szerint még nincs sztornózva. Sztornózd a Billingo felületén, majd próbáld újra.', 'billingo') ]
+                ]);
+                return;
+            }
+
+            $new_db_row = $billingo_repository->createFromDocument($order_id, $byIdData);
+
+            if (is_null($new_db_row)) {
+                wp_send_json_error([
+                    'error'    => true,
+                    'messages' => [ __('A bizonylat sztornózva van a Billingóban, de a helyi mentés sikertelen volt.', 'billingo') ]
+                ]);
+                return;
+            }
+
+            $billingo_repository->update($new_db_row['id'], ['canceled_by' => 999999999]);
+            Billingo_Logger::info('Manual reconciliation: Billingo document ID ' . $manual_billingo_id . ' confirmed cancelled and synced locally for order ' . $order_id);
+
+            wp_send_json_success([
+                'error'    => false,
+                'messages' => [ __('A megadott bizonylat sztornózva van a Billingóban — a helyi nyilvántartás frissült, új bizonylat kiállítható.', 'billingo') ]
+            ]);
+            return;
+        }
+
+        $billingo_id = !empty($manual_billingo_id) ? $manual_billingo_id : $row_in_db['billingo_id'];
+        $response = ['error' => false];
 
         //handles the email sending for the storno because it is not a document genaration, just a cancellation request to the server
         if(in_array(get_option('wc_billingo_storno_email'), ['both', 'billingo'])) {
@@ -188,7 +270,10 @@ trait Standard_Init
             Billingo_Logger::info('Invoice cancel data: ' . json_encode($data->toArray()));
 
             Billingo_Logger::info('Invoice cancel SUCCESFULL:' . $new_db_row['id']);
-        }else if ( $client->document()->getById($billingo_id)->getResponse()->getData()->toArray()['cancelled']){
+        }else if ( ($byIdData = $client->document()->getById($billingo_id)->getResponse()->getData())
+            && is_object($byIdData)
+            && method_exists($byIdData, 'toArray')
+            && !empty($byIdData->toArray()['cancelled']) ){
             $response['messages'][] =
                 __('Számla sztornózva a Billingóban: ', 'billingo');
 
@@ -246,12 +331,13 @@ trait Standard_Init
             $manualIncome['completed'] = sanitize_text_field($_POST['wc_billingo_invoice_completed']);
         }
 
-        $invoice = (new Billingo_Document_Generator($orderId, $manualIncome))->get();
+        $generator = new Billingo_Document_Generator($orderId, $manualIncome);
+        $invoice = $generator->get();
         if (is_null($invoice)) {
             $response['error'] = true;
             $response['messages'] = [
                 __('Sikertelen generálás', 'billingo'),
-                __('A rendelés adatai hiányosak, vagy hibát tartalmaznak', 'billingo'),
+                $generator->getLastError() ?? __('A rendelés adatai hiányosak, vagy hibát tartalmaznak', 'billingo'),
             ];
         } else {
             $controller = new Billingo_Controller($orderId);
@@ -261,7 +347,7 @@ trait Standard_Init
                 $response['error'] = true;
                 $response['messages'] = [
                     __('Sikertelen generálás', 'billingo'),
-                    __('A rendelés adatai hiányosak, vagy hibát tartalmaznak', 'billingo'),
+                    $controller->getLastError() ?? __('A rendelés adatai hiányosak, vagy hibát tartalmaznak', 'billingo'),
                 ];
             } else {
                 $response['messages'] = [

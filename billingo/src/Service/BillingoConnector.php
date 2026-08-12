@@ -6,6 +6,7 @@ use App\Billingo\Enums\BillingoErrorEnum;
 use App\Billingo\Enums\HttpMethodEnum;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Psr7\Response;
 
 class BillingoConnector
@@ -69,13 +70,24 @@ class BillingoConnector
 
         } catch (GuzzleException $exception) {
 
-            $response = $exception->getResponse();
+            $response = $exception instanceof RequestException ? $exception->getResponse() : null;
+
+            if ($response === null) {
+                return new BillingoResponse(
+                    BillingoErrorEnum::NETWORK_ERROR->value,
+                    0,
+                    data: billingoCollection([]),
+                    errors: [$exception->getMessage()],
+                );
+            }
+
+            $errors = json_decode($response->getBody()->getContents(), true);
 
             return new BillingoResponse(
                 $response->getReasonPhrase(),
                 $response->getStatusCode(),
                 data: billingoCollection([]),
-                errors: json_decode($response->getBody()->getContents(), true)
+                errors: is_array($errors) ? $errors : [(string) $response->getBody()]
             );
         }
     }
@@ -105,8 +117,9 @@ class BillingoConnector
     {
         $body = json_decode($response->getBody()->getContents(), true);
 
-        $meta = isset($body['data']) ? array_diff_key($body, ['data' => '']) : [];
-        $data = !empty($meta)
+        $hasDataKey = isset($body['data']);
+        $meta = $hasDataKey ? array_diff_key($body, ['data' => '']) : [];
+        $data = $hasDataKey
             ? (empty($body['data']) ? billingoCollection([]) : $body['data'])
             : $body;
 

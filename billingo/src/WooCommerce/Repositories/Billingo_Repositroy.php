@@ -173,7 +173,32 @@ class Billingo_Repositroy
      */
     private function getDatafromDocument(int $orderId, Document $document): ?array
     {
+        // A Billingo API válaszában akár egyetlen, a mi (esetleg elavult) validációs
+        // szabályainknak meg nem felelő mező is hasError()=true-t eredményezhet, annak
+        // ellenére, hogy a bizonylat ténylegesen sikeresen létrejött a Billingo oldalán.
+        // Ilyenkor NEM szabad kihagynunk a helyi mentést — csak naplózzuk a hibát, hogy
+        // legyen nyoma, de a valós ID/sorszám alapján továbbra is elmentjük a rekordot.
         if ($document->hasError()) {
+            // A getErrors() csak a Document SAJÁT (legfelső szintű) hibáját látja — ha a
+            // hiba egy beágyazott almodellben van (pl. settings, partner, items), azt csak
+            // a rekurzívan bejáró getSelfTest()->getErrors() mutatja meg.
+            $nestedErrors = $document->getSelfTest()->getErrors();
+            Billingo_Logger::warning(
+                'A Billingo válasz nem felelt meg minden validációs szabálynak, de a bizonylat '
+                . 'létrejött (ID: ' . $document->id . '), a helyi mentés folytatódik. Részletes hiba: '
+                . json_encode($nestedErrors, JSON_PARTIAL_OUTPUT_ON_ERROR)
+            );
+        }
+
+        if (empty($document->id)) {
+            $rawArray = $document->toArray();
+            Billingo_Logger::error(
+                'A Billingo válaszból hiányzik a bizonylat ID-ja, a helyi mentés kimarad. Order ID: '
+                . $orderId . '. Az "id" mező tényleges értéke: ' . var_export($rawArray['id'] ?? '(nincs ilyen kulcs)', true)
+                . '. hasError(): ' . var_export($document->hasError(), true)
+                . '. Teljes toArray(): ' . json_encode($rawArray, JSON_PARTIAL_OUTPUT_ON_ERROR)
+            );
+
             return null;
         }
 

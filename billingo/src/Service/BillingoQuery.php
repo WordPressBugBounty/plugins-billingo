@@ -52,7 +52,11 @@ abstract class BillingoQuery implements BillingoQueryInterface
             }
 
         } catch (BillingoException $exception) {
-            //don't do anything
+            error_log(sprintf(
+                'Billingo query filter "%s" is invalid and was not applied: %s',
+                $property,
+                $exception->getMessage()
+            ));
         }
 
         return $this;

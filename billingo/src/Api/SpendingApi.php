@@ -54,7 +54,7 @@ class SpendingApi extends BillingoApi
 
         if ($spendingSave->hasError()) {
 
-            throw new BadContentException(esc_html( $spendingSave->getSelfTest()));
+            throw new BadContentException($spendingSave->getSelfTest());
         }
 
         $this->apiContext
@@ -95,7 +95,7 @@ class SpendingApi extends BillingoApi
 
         if ($spendingSave->hasError()) {
 
-            throw new BadContentException(esc_html( $spendingSave->getSelfTest()));
+            throw new BadContentException($spendingSave->getSelfTest());
         }
 
         $this->apiContext

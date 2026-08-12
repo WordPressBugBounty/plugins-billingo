@@ -52,7 +52,7 @@ class ProductApi extends BillingoApi
 
         if ($product->hasError()) {
 
-            throw new BadContentException(esc_html( $product->getSelfTest()));
+            throw new BadContentException($product->getSelfTest());
         }
 
         $this->apiContext
@@ -93,7 +93,7 @@ class ProductApi extends BillingoApi
 
         if ($product->hasError()) {
 
-            throw new BadContentException(esc_html( $product->getSelfTest()));
+            throw new BadContentException($product->getSelfTest());
         }
 
         $this->apiContext

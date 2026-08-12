@@ -3,7 +3,7 @@ Tags: billingo.hu, billingo, woocommerce, szamlazas, magyar
 Requires at least: 6.8
 Tested up to: 6.8
 Requires PHP: 8.1
-Stable tag: 4.3.2
+Stable tag: 4.3.3
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -25,6 +25,7 @@ Korábbi verzió használata esetén átállási segédletünket itt találod: h
 *   Automata számlakészítés - Az automatizmusok nagyban segíthetik az adminisztratív teendőid, emellett rengeteg időt spórolhatsz. A beállítási lehetőségek között megadhatod, hogy milyen rendelési állapotban kerüljenek kiállításra a számláid. Természetesen dönthetsz úgy, hogy elsőre csak piszkozatot készítesz, így lesz egy ellenőrzési lehetőséged is
 *   Automatikus sztornózási lehetőség - Abban az esetben, ha a vásárlód visszamondja a rendelését, viszont már kiállítottad a számlát, lehetőséged van a felületről sztornózást indítani. Megadhatod, hogy melyik rendelési állapotban készítsünk neked sztornó számlát.
 *   Számla típus választás - Kiválaszthatod, hogy vásárlóid számára hagyományos, vagy elektronikus számlát szeretnél kiállítani a webshopodból. Természetesen bármikor módosíthatsz, ha esetleg változtatni szeretnél.
+*   Termékenkénti bizonylattípus felülírás - Egy adott terméknél beállíthatod, hogy az azt tartalmazó rendelés automatikusan milyen bizonylattípussal (számla, díjbekérő, piszkozat vagy előlegszámla) készüljön el, a normál automata/kézi beállítástól függetlenül. A prioritási sorrend: 1) a rendelés oldalán kézzel kiválasztott bizonylattípus mindig elsőbbséget élvez, 2) ha nincs kézi választás, a termék-szintű felülírás érvényesül, 3) ha egyik sincs beállítva, a normál automatikus/kézi alapbeállítás szerint történik a számlázás. Ha egy rendelésben több, eltérő felülírással rendelkező termék is szerepel, a tételek sorrendjében az első felülírás érvényesül.
 *   Nyelvesítési opciók - Számláid Magyar, Angol, Német, Francia, Horvát, Olasz, Román és Szlovák nyelven egyaránt kiállíthatod. Ezen felül bekapcsolhatod azt is, hogy ha valaki a weboldaladtól eltérő nyelven használja a böngészőjét, az adott nyelven kerüljön kiállításra a számla. Ehhez az opcióhoz WPML és Woocommerce Multilingual bővítményre is szükség van.
 *   Megjegyzések kezelése - Van lehetőséged arra, hogy globálisan adj megjegyzést a számláidhoz, de természetesen egyesével is tudod módosítani a kiállított számlák megjegyzéseit. Ezen felül hozzáadhatod a Barion tranzakciós fizetési azonosítót és a termékeid cikkszámát hozzáadhatod a tételek megjegyzéseihez is.
 *   Adószámmal kapcsolatos funkciók - Bizonyos vásárlási esetekben előfordul, hogy az adószámot fel kell tüntetni a kiállított számlákon. Ennek a megadását a WooCommerce alapvetően nem teszi lehetővé, viszont bővítményünk segítségével a rendeléseknél bekérheted a vásárló adószámát, majd ezt a kiállított számlán könnyedén, automatikusan megjelenítjük számodra.
@@ -54,6 +55,28 @@ Pár kiemelt pont a működéssel kapcsolatosan:
 1. Töltsd le a bővítményt vagy telepítsd bel a Bővítmények menüpontban
 2. WooCommerce / Beállítások oldal alján megjelennek a Billingo beállítások, ezeket be kell állítani
 3. Beállíátsok elmentése után lehetőség van a fizetési módok összepárosítására a billingo rendszerében megfelelővel
+
+== Changelog ==
+= 4.3.3 =
+* Új funkció: 0 Ft-os rendelések számlázásának kihagyása (kapcsolható beállítás)
+* Új funkció: devizától függő számlanyelv (deviza-nyelv hozzárendelés)
+* Új funkció: élő NAV adószám-ellenőrzés a checkoutnál (kapcsolható beállítás)
+* Új funkció: céges vásárlás felismerése, partner adótípus automatikus beállítása adószám megadásakor
+* Új funkció: termékenkénti bizonylattípus-felülírás (számla/díjbekérő/piszkozat/előlegszámla választható egy adott terméknél). Prioritási sorrend: 1) kézzel a rendelés oldalán kiválasztott típus, 2) termék-szintű felülírás, 3) normál automata/kézi alapbeállítás
+* Vendor_id logika javítása, hogy sztornó után újra ki lehessen állítani a számlát a Billingo API-n keresztül
+* Termékár mentés megmarad, de nem jelenik meg a rendelés részletes nézetében
+* Kritikus hibajavítás: fatal error validációs hiba esetén
+* Kritikus hibajavítás: fatal error a bizonylatmodellek önellenőrzésénél
+* Hibajavítás: fatal error hálózati hiba esetén az API kommunikációnál
+* Hibajavítás: hibás ÁFA felülírás beállítás esetén a generálás megáll admin figyelmeztetéssel, hibás számla helyett
+* Biztonsági javítás: jogosultság-eszkalációs hiba az e-mail beállítások mentésénél
+* Hibajavítás: díjbekérő-számla konverzió (duplikált számlák helyett)
+* Hibajavítás: sztornó folyamat fatal error hiányzó adatnál
+* Hibajavítás: naplófájlok webes elérhetőségének megszüntetése
+* Hibajavítás: adószám-ellenőrző és legacy ID végpont URL hiba
+* Több validációs és adatmodell hiba javítása
+* Hibajavítás: termékszinkron lapozás (duplikált termékek 100 db felett)
+* Hibajavítás: "Billingo" fül olvashatósága a WooCommerce beállítások oldalon
 
 == Changelog ==
 = 4.3.1 =

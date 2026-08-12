@@ -286,6 +286,7 @@ class WC_Billingo_Admin_Controller
             'company_name' => get_option('wc_billingo_company_name', '0'),
             'vat_number_form_custom' => get_option('wc_billingo_vat_number_form_custom', ''),
             'vat_number_notice' => get_option('wc_billingo_vat_number_notice', 'Az adószám megadása kötelező magyar adóalanyok esetében, ezért amennyiben rendelkezik adószámmal, azt kötelező megadni a számlázási adatoknál.'),
+            'invoice_lang_by_currency_map' => get_option('wc_billingo_invoice_lang_by_currency_map', ''),
 
             // Checkbox options
             'electronic' => get_option('wc_billingo_electronic', '0'),
@@ -304,6 +305,10 @@ class WC_Billingo_Admin_Controller
             'decimalsoff'=> get_option('wc_billingo_decimalsoff', '0'),
             'shippingcomment'=> get_option('wc_billingo_shippingcomment', '0'),
             'testmode' => get_option('wc_billingo_test', '0'),
+            'skip_zero_total' => get_option('wc_billingo_skip_zero_total', '0'),
+            'invoice_lang_by_currency_enabled' => get_option('wc_billingo_invoice_lang_by_currency_enabled', '0'),
+            'vat_number_live_check' => get_option('wc_billingo_vat_number_live_check', '0'),
+            'manual_id_check_enabled' => get_option('wc_billingo_manual_id_check_enabled', '0'),
             // Select options
             'auto_storno' => get_option('wc_billingo_auto_storno', 'no'),
             'payment_request_auto' => get_option('wc_billingo_payment_request_auto', 'no'),
@@ -343,6 +348,9 @@ class WC_Billingo_Admin_Controller
         // CSRF
         wp_nonce_field('woocommerce-settings');
 
+        $allVatValues = getEnumValues(VatEnum::class);
+        $feeVatOptions = ['' => __('Automatikus azonosítás', 'billingo')] + array_combine($allVatValues, $allVatValues);
+
         $html = view('Admin.subtabs.tax_settings', [
             'tax_override' => (int)get_option('wc_billingo_tax_override', 0),
             'tax_override_choice' => $tax_override_choice,
@@ -353,7 +361,9 @@ class WC_Billingo_Admin_Controller
             'tax_shipping_pirce_type_is_net' => (int)get_option('wc_billingo_tax_shipping_pirce_type_is_net', 0),
             'always_add_carrier' => (int)get_option('wc_billingo_always_add_carrier', 0),
             'entitlements' => $entitlements,
-            'taxes' => $onlyTaxes
+            'taxes' => $onlyTaxes,
+            'fee_vat_options' => $feeVatOptions,
+            'selected_fee_vat_override' => get_option('wc_billingo_fee_vat_override', ''),
         ]);
 
         echo $html;
@@ -710,6 +720,14 @@ class WC_Billingo_Admin_Controller
             }
         }
 
+        // Több soros mező (DEVIZA=nyelvkód párok), sanitize_text_field levágná a sortöréseket
+        if (isset($_POST['wc_billingo_invoice_lang_by_currency_map'])) {
+            update_option(
+                'wc_billingo_invoice_lang_by_currency_map',
+                sanitize_textarea_field(wp_unslash($_POST['wc_billingo_invoice_lang_by_currency_map']))
+            );
+        }
+
         // checkbox fields
         $checkbox_fields = [
             'wc_billingo_disable_proforma_invoicing',
@@ -728,6 +746,10 @@ class WC_Billingo_Admin_Controller
             'wc_billingo_decimalsoff',
             'wc_billingo_shippingcomment',
             'wc_billingo_test',
+            'wc_billingo_skip_zero_total',
+            'wc_billingo_invoice_lang_by_currency_enabled',
+            'wc_billingo_vat_number_live_check',
+            'wc_billingo_manual_id_check_enabled',
         ];
 
         foreach ($checkbox_fields as $field) {
@@ -776,6 +798,14 @@ class WC_Billingo_Admin_Controller
             }
         }
 
+        if (isset($_POST['wc_billingo_fee_vat_override'])) {
+            $feeVatValue = sanitize_text_field(wp_unslash($_POST['wc_billingo_fee_vat_override']));
+
+            if ($feeVatValue === '' || VatEnum::tryFrom($feeVatValue) !== null) {
+                update_option('wc_billingo_fee_vat_override', $feeVatValue);
+            }
+        }
+
         $checkbox_fields = [
             'wc_billingo_tax_override_include_carrier',
             'wc_billingo_always_add_carrier',
@@ -807,10 +837,24 @@ class WC_Billingo_Admin_Controller
         }
 
         if (isset($_POST['billingo_email_settings']) && is_array($_POST['billingo_email_settings'])) {
-            //maradhat Lead azt mondta
+            $allowed_keys = [
+                'wc_billingo_proforma_email',
+                'wc_billingo_proforma_email_woo_btn',
+                'wc_billingo_proforma_email_woo_text',
+                'wc_billingo_email',
+                'wc_billingo_email_woo_btn',
+                'wc_billingo_email_woo_text',
+                'wc_billingo_storno_email',
+                'wc_billingo_storno_email_woo_btn',
+                'wc_billingo_storno_email_woo_text',
+            ];
+
             $email_settings = wp_unslash($_POST['billingo_email_settings']);
             foreach ($email_settings as $key => $value) {
-                update_option(sanitize_text_field($key), sanitize_text_field($value));
+                if (!in_array($key, $allowed_keys, true)) {
+                    continue;
+                }
+                update_option($key, sanitize_text_field($value));
             }
         }
     }

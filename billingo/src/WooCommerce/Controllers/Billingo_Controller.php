@@ -17,12 +17,23 @@ class Billingo_Controller
     private readonly BillingoClient $client;
     private readonly Billingo_Repositroy $repository;
     private bool $blockProforma;
+    private ?string $lastError = null;
 
     public function __construct(private readonly int $orderId)
     {
         $this->client = new BillingoClient(get_option('wc_billingo_api_key', ''));
         $this->blockProforma = get_option('wc_billingo_disable_proforma_invoicing') === 'yes';
         $this->repository = new Billingo_Repositroy();
+    }
+
+    /**
+     * A generálás sikertelensége esetén a tényleges okot adja vissza (ember által
+     * olvasható formában), hogy a manuális generálás felülete ne csak egy általános
+     * "sikertelen generálás" üzenetet mutasson.
+     */
+    public function getLastError(): ?string
+    {
+        return $this->lastError;
     }
 
     public function createDocument(DocumentInsert $document): ?Document
@@ -37,15 +48,19 @@ class Billingo_Controller
 
         if ($hasInvoice && $document->type === TypeEnum::INVOICE->value) {
             $errorMessage ='Már van érvényes számla a ' . $this->orderId . 'számú  rendelésre, nem kell újat létrehozni, amennyiben mégis újat szeretne létrehozni, előbb sztornózza a már meglévő számlát! : Számla neve: ' . $hasInvoice['billingo_number'];
+            $this->lastError = sprintf(
+                __('Már van érvényes számla ehhez a rendeléshez (%s), előbb sztornózni kell, mielőtt újat lehetne kiállítani.', 'billingo'),
+                $hasInvoice['billingo_number']
+            );
             Billingo_Logger::info($errorMessage);
-            
+
             return null;
         }else {
 
             $hasProforma = $this->repository
             ->where('type', TypeEnum::PROFORMA->value)
             ->where('order_id', $this->orderId)
-            ->get();
+            ->first();
 
             $canUseProforma = !$this->blockProforma && 
             $hasProforma !== null && 
@@ -131,7 +146,11 @@ class Billingo_Controller
                 ->getResponse();
         } catch (BadContentException $exception) {
 
-            Billingo_Logger::error('Billingo server creation FAILED: ' . $exception->getMessage());
+            $detailedMessage = $this->flattenErrorMessage($exception->getSelfTest()->getErrors() ?? []);
+            $this->lastError = $detailedMessage !== ''
+                ? $detailedMessage
+                : __('A rendelés adatai érvénytelenek a Billingo API szerint.', 'billingo');
+            Billingo_Logger::error('Billingo server creation FAILED: ' . $exception->getMessage() . ' | Részletes hiba: ' . $this->lastError);
 
             return null;
         }
@@ -147,8 +166,13 @@ class Billingo_Controller
 
         } else {
 
+            $apiErrors = $response->getErrors();
+            $stringifiedErrors = $this->stringifyApiErrors($apiErrors);
+            $this->lastError = $stringifiedErrors !== ''
+                ? $stringifiedErrors
+                : sprintf(__('A Billingo API hibával válaszolt (HTTP %d).', 'billingo'), $response->getStatusCode());
             Billingo_Logger::error('Billingo server creation FAILED: '
-                . json_encode($response->getErrors()));
+                . json_encode($apiErrors));
 
             return null;
         }
@@ -171,11 +195,109 @@ class Billingo_Controller
 
             return $response->getData();
         } else {
+            $apiErrors = $response->getErrors();
+            $stringifiedErrors = $this->stringifyApiErrors($apiErrors);
+            $this->lastError = $stringifiedErrors !== ''
+                ? $stringifiedErrors
+                : sprintf(__('A díjbekérőből történő számlázás sikertelen (HTTP %d).', 'billingo'), $response->getStatusCode());
             Billingo_Logger::error('Billingo server creation from proforma: FAILED '
-                . json_encode($response->getErrors()));
+                . json_encode($apiErrors));
 
             return null;
         }
+    }
+
+    /**
+     * A getSelfTest()->getErrors() beágyazott, tetszőleges mélységű tömböt ad vissza,
+     * aminek levelei BillingoError objektumok — ez egy rövid, ember által olvasható
+     * szöveggé alakítja.
+     */
+    private function flattenErrorMessage(array $errors, string $prefix = ''): string
+    {
+        $messages = [];
+
+        foreach ($errors as $key => $value) {
+            $path = $prefix === '' ? (string)$key : $prefix . '.' . $key;
+
+            if ($value instanceof \App\Billingo\Error\BillingoError) {
+                $fieldMessages = $value->getValues();
+
+                if (!empty($fieldMessages)) {
+                    foreach ($fieldMessages as $field => $fieldErrors) {
+                        $messages[] = $path . '.' . $field . ': ' . implode(', ', (array)$fieldErrors);
+                    }
+                } else {
+                    $messages[] = $path . ': ' . $value->getType()->value;
+                }
+            } elseif (is_array($value)) {
+                $nested = $this->flattenErrorMessage($value, $path);
+
+                if ($nested !== '') {
+                    $messages[] = $nested;
+                }
+            }
+        }
+
+        return implode(' | ', $messages);
+    }
+
+    /**
+     * A Billingo API hibaválasza (BillingoResponse::getErrors()) tetszőleges, esetenként
+     * beágyazott tömb lehet (mezőnév => hibaüzenet-lista). Ez összegyűjti a tényleges
+     * szöveges hibaüzeneteket (a nyers "error.message: ..." elérési út nélkül, ami a
+     * felhasználó számára értelmezhetetlen), és ismert hibatípusoknál közérthető, magyar
+     * magyarázatra cseréli.
+     */
+    private function stringifyApiErrors(array $errors): string
+    {
+        $rawMessages = $this->collectApiErrorMessages($errors);
+
+        if (empty($rawMessages)) {
+            return '';
+        }
+
+        $friendlyMessages = array_unique(array_map(
+            fn($message) => $this->translateApiErrorMessage($message),
+            $rawMessages
+        ));
+
+        return implode(' | ', $friendlyMessages);
+    }
+
+    private function collectApiErrorMessages(array $errors): array
+    {
+        $messages = [];
+
+        foreach ($errors as $value) {
+            if (is_array($value)) {
+                $messages = array_merge($messages, $this->collectApiErrorMessages($value));
+            } elseif (is_string($value) && $value !== '') {
+                $messages[] = $value;
+            }
+        }
+
+        return $messages;
+    }
+
+    /**
+     * Ismert, gyakran előforduló Billingo API hibaüzeneteket fordít le közérthető,
+     * magyar, a boltos számára ténylegesen hasznos magyarázatra. Ismeretlen üzenetnél a
+     * Billingo eredeti szövegét adja vissza változatlanul.
+     */
+    private function translateApiErrorMessage(string $message): string
+    {
+        if (stripos($message, 'duplicate vendor id') !== false) {
+            return __(
+                'A Billingo szerint ehhez a rendeléshez korábban már beérkezett egy azonos bizonylat-kérés '
+                . '(duplikátum-védelem). Ez általában akkor fordul elő, ha egy korábbi generálási kísérlet '
+                . 'ténylegesen létrehozta a bizonylatot a Billingo oldalán, de a helyi nyilvántartásba '
+                . 'valamiért nem került be. Ellenőrizd a Billingo felületén, hogy létrejött-e már a bizonylat '
+                . 'ehhez a rendeléshez — ha igen, nincs teendő; ha nem, próbáld újra néhány perc múlva.',
+                'billingo'
+            );
+        }
+
+        return $message;
     }
 
     private function store(Document $document): void
