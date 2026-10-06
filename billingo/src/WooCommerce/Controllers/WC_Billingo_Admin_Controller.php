@@ -287,6 +287,7 @@ class WC_Billingo_Admin_Controller
             'vat_number_form_custom' => get_option('wc_billingo_vat_number_form_custom', ''),
             'vat_number_notice' => get_option('wc_billingo_vat_number_notice', 'Az adószám megadása kötelező magyar adóalanyok esetében, ezért amennyiben rendelkezik adószámmal, azt kötelező megadni a számlázási adatoknál.'),
             'invoice_lang_by_currency_map' => get_option('wc_billingo_invoice_lang_by_currency_map', ''),
+            'multisite_identifier' => get_option('wc_billingo_multisite_identifier', ''),
 
             // Checkbox options
             'electronic' => get_option('wc_billingo_electronic', '0'),
@@ -298,6 +299,7 @@ class WC_Billingo_Admin_Controller
             'flip_name' => get_option('wc_billingo_flip_name', '0'),
             'invoice_lang_wpml' => get_option('wc_billingo_invoice_lang_wpml', '0'),
             'note_orderid' => get_option('wc_billingo_note_orderid', '0'),
+            'customer_note_override_enabled' => get_option('wc_billingo_customer_note_override_enabled', '0'),
             'block_child_orders' => get_option('wc_billingo_block_child_orders', '0'),
             'vat_number_form' => get_option('wc_billingo_vat_number_form', '0'),
             'vat_number_form_checkbox_custom' => get_option('wc_billingo_vat_number_form_checkbox_custom', '0'),
@@ -309,6 +311,8 @@ class WC_Billingo_Admin_Controller
             'invoice_lang_by_currency_enabled' => get_option('wc_billingo_invoice_lang_by_currency_enabled', '0'),
             'vat_number_live_check' => get_option('wc_billingo_vat_number_live_check', '0'),
             'manual_id_check_enabled' => get_option('wc_billingo_manual_id_check_enabled', '0'),
+            'multisite_enabled' => get_option('wc_billingo_multisite_enabled', '0'),
+            'advance_invoice_linking_enabled' => get_option('wc_billingo_advance_invoice_linking_enabled', '0'),
             // Select options
             'auto_storno' => get_option('wc_billingo_auto_storno', 'no'),
             'payment_request_auto' => get_option('wc_billingo_payment_request_auto', 'no'),
@@ -337,6 +341,11 @@ class WC_Billingo_Admin_Controller
                 $onlyTaxes[$tax] = $tax;
             }
         });
+
+        // Az EUK (közösségen belüli szolgáltatásnyújtás) kulcs nem tartalmaz "%" jelet,
+        // ezért a fenti szűrés kihagyná — az ÁFA felülíráshoz mégis szükséges, hogy
+        // választható legyen.
+        $onlyTaxes[VatEnum::EUK->value] = VatEnum::EUK->value;
 
         $firstEntitlement = ['' => ''];
         $entitlements = $this->get_indexed_array_from_enum(EntitlementEnum::class);
@@ -420,6 +429,7 @@ class WC_Billingo_Admin_Controller
                 'pay2' => (int)get_option('wc_billingo_mark_as_paid2_' . $key, 0),
                 'pro' => (int)get_option('wc_billingo_proforma_' . $key, 0),
                 'doff' => (int)get_option('wc_billingo_doff_' . $key, 0),
+                'payment_check_status' => get_option('wc_billingo_payment_check_status_' . $key, ''),
             ];
         }
 
@@ -431,7 +441,9 @@ class WC_Billingo_Admin_Controller
         $html = view('Admin.subtabs.payment_settings', [
             'payment_methods' => $payment_methods,
             'billingo_payment_methods' => $billingo_payment_methods,
-            'proforma_auto' => get_option('wc_billingo_payment_request_auto', 'no')
+            'proforma_auto' => get_option('wc_billingo_payment_request_auto', 'no'),
+            'order_statuses' => wc_get_order_statuses(),
+            'payment_check_enabled' => get_option('wc_billingo_bacs_payment_check_enabled', '0'),
         ]);
 
         echo $html;
@@ -710,7 +722,8 @@ class WC_Billingo_Admin_Controller
             'wc_billingo_payment_request_auto',
             'wc_billingo_auto_storno',
             'wc_billingo_vat_number_form_custom',
-            'wc_billingo_vat_number_notice'
+            'wc_billingo_vat_number_notice',
+            'wc_billingo_multisite_identifier'
         ];
 
         foreach ($text_fields as $field) {
@@ -750,6 +763,9 @@ class WC_Billingo_Admin_Controller
             'wc_billingo_invoice_lang_by_currency_enabled',
             'wc_billingo_vat_number_live_check',
             'wc_billingo_manual_id_check_enabled',
+            'wc_billingo_multisite_enabled',
+            'wc_billingo_advance_invoice_linking_enabled',
+            'wc_billingo_customer_note_override_enabled',
         ];
 
         foreach ($checkbox_fields as $field) {
@@ -878,6 +894,8 @@ class WC_Billingo_Admin_Controller
         if (isset($_POST['billingo_payment_settings']) && is_array($_POST['billingo_payment_settings'])) {
             //maradhat Lead azt mondta
             $billingo_payment_settings = wp_unslash($_POST['billingo_payment_settings']);
+            $validOrderStatuses = array_keys(wc_get_order_statuses());
+
             foreach ($billingo_payment_settings as $id => $fields) {
                 $id = sanitize_text_field($id);
                 update_option('wc_billingo_payment_method_' . $id, sanitize_text_field($fields['billingo_payment_method']));
@@ -886,7 +904,18 @@ class WC_Billingo_Admin_Controller
                 update_option('wc_billingo_mark_as_paid2_' . $id, (int)($fields['mark_as_paid2'] ?? 0));
                 update_option('wc_billingo_proforma_' . $id, (int)($fields['proforma'] ?? 0));
                 update_option('wc_billingo_doff_' . $id, (int)($fields['documentoff'] ?? 0));
+
+                $paymentCheckStatus = sanitize_text_field($fields['payment_check_status'] ?? '');
+                if ($paymentCheckStatus === '' || in_array($paymentCheckStatus, $validOrderStatuses, true)) {
+                    update_option('wc_billingo_payment_check_status_' . $id, $paymentCheckStatus);
+                }
             }
+        }
+
+        if (isset($_POST['wc_billingo_bacs_payment_check_enabled'])) {
+            update_option('wc_billingo_bacs_payment_check_enabled', 1);
+        } else {
+            update_option('wc_billingo_bacs_payment_check_enabled', 0);
         }
     }
 } 

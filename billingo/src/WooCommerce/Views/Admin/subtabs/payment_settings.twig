@@ -210,6 +210,17 @@
         <div class="billingo-settings-panel payment-settings">
             <h2 class="billingo-settings-title-payment-methods">{{ 'Fizetési Módok Beállításai'|esc_html_translate }}</h2>
 
+            <div style="margin-bottom: 20px;">
+                <label class="relative inline-flex items-center cursor-pointer" style="gap: 10px;">
+                    <input type="checkbox" name="wc_billingo_bacs_payment_check_enabled" value="1" class="sr-only peer" {% if payment_check_enabled=='1' %}checked="checked"{% endif %}>
+                    <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    <span class="billingo-field-name">{{ 'Fizetési státusz automatikus ellenőrzése'|esc_html_translate }}</span>
+                </label>
+                <p class="billingo-field-description-italic" style="width: auto; height: auto;">{{ 'Ha be van kapcsolva, a rendszer óránként leellenőrzi a "Feldolgozásra vár" állapotú
+                    rendeléseket azoknál a fizetési módoknál, amelyeknél alább be van állítva egy célállapot — és ha a hozzájuk
+                    tartozó Billingo számla kifizetettként szerepel, automatikusan arra az állapotra váltja a rendelést.'|esc_html_translate }}</p>
+            </div>
+
             <table class="widefat billingo-payment-methods-table">
                 <thead>
                     <tr>
@@ -224,6 +235,9 @@
                             {% endif %}</th>
                         <th class="billingo-payment-methods-table-header">{{ 'Számla kiállítás felülírása'|esc_html_translate }}
                             <span class="billingo-field-description-italic">(A fizetési módhoz tartozó rendelésekről nem készül bizonylat.)</span>
+                        </th>
+                        <th class="billingo-payment-methods-table-header">{{ 'Fizetés ellenőrzés célállapota'|esc_html_translate }}
+                            <span class="billingo-field-description-italic">(A fenti "Fizetési státusz automatikus ellenőrzése" kapcsolónak is be kell kapcsolva lennie.)</span>
                         </th>
                     </tr>
                 </thead>
@@ -279,6 +293,15 @@
                                        value="1" class="sr-only peer" {% if method.doff==1 %}checked="checked" {% endif %}>
                                 <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                             </label>
+                        </td>
+                        <td>
+                            <select class="billingo-payment-methods-table-select" name="billingo_payment_settings[{{ method.key|esc_attr }}][payment_check_status]"
+                                style="width: 100%;">
+                                <option value="">{{ '— nincs —'|esc_html_translate }}</option>
+                                {% for index, status in order_statuses %}
+                                <option value="{{ index|esc_attr }}" {% if index==method.payment_check_status %}selected="selected" {% endif %}>{{ status|esc_html_translate }}</option>
+                                {% endfor %}
+                            </select>
                         </td>
                     </tr>
                     {% endfor %}

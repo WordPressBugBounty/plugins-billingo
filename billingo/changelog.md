@@ -1,5 +1,12 @@
 # Changelog
--**4.3.3** - 2026.08.
+-**4.3.4** - 2026.08.
+* New feature: automatic linking of advance invoice and final invoice (togglable) - when the order reaches the invoicing-activation status, an advance invoice is issued; once the order reaches the target status configured for its payment method's payment status check, the final invoice is generated automatically and linked to the advance invoice on Billingo
+* New feature: automatic and manual payment status check against Billingo, configurable per payment method with its own target status, plus a manual "Check payment" button on the order page
+* New feature: manual Billingo document ID lookup and reconciliation (togglable) - lets you match up and sync a document that was already created on Billingo (e.g. after a "duplicate vendor id" error) but never saved locally
+* New feature: VAT override for the payment/shipping fee line as well, aware of whether WooCommerce prices are set as gross or net (togglable)
+* New feature: EUK VAT code support in both VAT override settings
+* New feature: multisite support - per-site identifier included in the vendor_id sent to Billingo (togglable)
+* New feature: the customer's checkout note can be allowed to override the default invoice note (togglable) - by default the shop's fixed invoice note always appears on the invoice, even if the customer entered their own note on the order; when enabled, the customer's note overrides the default text as before
 * New feature: skip invoicing for 0 Ft orders (togglable setting)
 * New feature: currency-dependent invoice language (currency to language mapping)
 * New feature: live NAV tax number validation at checkout (togglable setting)

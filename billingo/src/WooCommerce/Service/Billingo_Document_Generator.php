@@ -251,7 +251,34 @@ class Billingo_Document_Generator
             ],
         ];
 
+        // Ha ehhez a rendeléshez már van korábban kiállított, érvényes (nem sztornózott)
+        // előlegszámla, és most a végleges számlát (invoice) állítjuk ki, jelezzük a
+        // Billingo felé, hogy ez a számla az előleget rendezi — a Billingo automatikusan
+        // levonja az előleg összegét a végszámla végösszegéből.
+        if ($this->currentDocumentType === TypeEnum::INVOICE->value && wcFlexibleIsTrue(get_option('wc_billingo_advance_invoice_linking_enabled'))) {
+            $advanceInvoiceId = $this->findActiveAdvanceInvoiceId();
+
+            if ($advanceInvoiceId !== null) {
+                $document['advance_invoice'] = [$advanceInvoiceId];
+                Billingo_Logger::info('Végszámla generálása előlegszámla alapján. Előlegszámla Billingo ID: ' . $advanceInvoiceId);
+            }
+        }
+
         $this->documentData = $document;
+    }
+
+    /**
+     * Megkeresi a rendeléshez tartozó, érvényes (nem sztornózott) előlegszámla Billingo
+     * ID-ját, ha van ilyen.
+     */
+    private function findActiveAdvanceInvoiceId(): ?int
+    {
+        $row = (new Billingo_Repositroy())
+            ->where('order_id', $this->order->get_id())
+            ->where('type', TypeEnum::ADVANCE->value)
+            ->first();
+
+        return ($row && !empty($row['billingo_id'])) ? (int)$row['billingo_id'] : null;
     }
 
     /**
@@ -280,7 +307,21 @@ class Billingo_Document_Generator
                 ->get()
         );
 
-        return $orderId . '-' . $type . '-' . ($previousCount + 1);
+        // Multisite támogatás: ha ugyanaz a Billingo fiók több különálló webshophoz van
+        // kötve, a rendelés ID-k ütközhetnek (pl. mindkét oldalon lehet #100-as rendelés),
+        // ami a vendor_id-t is ütköztetné a Billingo oldalán — annak ellenére, hogy két
+        // teljesen független rendelésről van szó. Ha be van kapcsolva, egy admin által
+        // megadott, webshoponként egyedi azonosítót teszünk a vendor_id elejére.
+        $sitePrefix = '';
+        if (wcFlexibleIsTrue(get_option('wc_billingo_multisite_enabled'))) {
+            $siteIdentifier = trim((string)get_option('wc_billingo_multisite_identifier', ''));
+
+            if ($siteIdentifier !== '') {
+                $sitePrefix = $siteIdentifier . '-';
+            }
+        }
+
+        return $sitePrefix . $orderId . '-' . $type . '-' . ($previousCount + 1);
     }
 
     private function resolvePaidType(): bool
@@ -1442,9 +1483,16 @@ class Billingo_Document_Generator
             $defaultNote = $defaultNoteOptionKey;
         }
 
-        $note = empty($this->order->get_customer_note())
-            ? $defaultNote
-            : $this->order->get_customer_note() ?? '';
+        // Alapértelmezés szerint a boltos által beállított állandó megjegyzés mindig
+        // megjelenik a számlán, még akkor is, ha a vásárló írt megjegyzést a
+        // rendeléshez — ez elkerülhetővé teszi, hogy egy vásárlói megjegyzés
+        // véletlenül eltüntesse a fix, gyakran jogi/adminisztratív célú szöveget.
+        // Ha a boltos kifejezetten engedélyezi, a vásárlói megjegyzés felülírhatja azt.
+        $customerNoteOverrideAllowed = wcFlexibleIsTrue(get_option('wc_billingo_customer_note_override_enabled'));
+
+        $note = ($customerNoteOverrideAllowed && !empty($this->order->get_customer_note()))
+            ? $this->order->get_customer_note()
+            : $defaultNote;
 
         if (isset($this->manualIncome['note']) && !empty($this->manualIncome['note'])) {
             $note = $this->manualIncome['note'];

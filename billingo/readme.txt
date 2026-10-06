@@ -1,9 +1,9 @@
 === Billingo Official for WooCommerce ===
 Tags: billingo.hu, billingo, woocommerce, szamlazas, magyar
 Requires at least: 6.8
-Tested up to: 6.8
+Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 4.3.3
+Stable tag: 4.3.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -27,13 +27,18 @@ Korábbi verzió használata esetén átállási segédletünket itt találod: h
 *   Számla típus választás - Kiválaszthatod, hogy vásárlóid számára hagyományos, vagy elektronikus számlát szeretnél kiállítani a webshopodból. Természetesen bármikor módosíthatsz, ha esetleg változtatni szeretnél.
 *   Termékenkénti bizonylattípus felülírás - Egy adott terméknél beállíthatod, hogy az azt tartalmazó rendelés automatikusan milyen bizonylattípussal (számla, díjbekérő, piszkozat vagy előlegszámla) készüljön el, a normál automata/kézi beállítástól függetlenül. A prioritási sorrend: 1) a rendelés oldalán kézzel kiválasztott bizonylattípus mindig elsőbbséget élvez, 2) ha nincs kézi választás, a termék-szintű felülírás érvényesül, 3) ha egyik sincs beállítva, a normál automatikus/kézi alapbeállítás szerint történik a számlázás. Ha egy rendelésben több, eltérő felülírással rendelkező termék is szerepel, a tételek sorrendjében az első felülírás érvényesül.
 *   Nyelvesítési opciók - Számláid Magyar, Angol, Német, Francia, Horvát, Olasz, Román és Szlovák nyelven egyaránt kiállíthatod. Ezen felül bekapcsolhatod azt is, hogy ha valaki a weboldaladtól eltérő nyelven használja a böngészőjét, az adott nyelven kerüljön kiállításra a számla. Ehhez az opcióhoz WPML és Woocommerce Multilingual bővítményre is szükség van.
-*   Megjegyzések kezelése - Van lehetőséged arra, hogy globálisan adj megjegyzést a számláidhoz, de természetesen egyesével is tudod módosítani a kiállított számlák megjegyzéseit. Ezen felül hozzáadhatod a Barion tranzakciós fizetési azonosítót és a termékeid cikkszámát hozzáadhatod a tételek megjegyzéseihez is.
+*   Megjegyzések kezelése - Van lehetőséged arra, hogy globálisan adj megjegyzést a számláidhoz, de természetesen egyesével is tudod módosítani a kiállított számlák megjegyzéseit. Ezen felül hozzáadhatod a Barion tranzakciós fizetési azonosítót és a termékeid cikkszámát hozzáadhatod a tételek megjegyzéseihez is. Külön (kapcsolható) beállítással szabályozhatod azt is, hogy a vásárló által a megrendelés során beírt megjegyzés felülírhatja-e ezt az állandó szöveget, vagy az mindig megjelenjen a számlán.
 *   Adószámmal kapcsolatos funkciók - Bizonyos vásárlási esetekben előfordul, hogy az adószámot fel kell tüntetni a kiállított számlákon. Ennek a megadását a WooCommerce alapvetően nem teszi lehetővé, viszont bővítményünk segítségével a rendeléseknél bekérheted a vásárló adószámát, majd ezt a kiállított számlán könnyedén, automatikusan megjelenítjük számodra.
-*   ÁFA beállítások - Nem a szokványos ÁFA beállításokat kell használnod? Esetlegesen vannak olyan tételek a termékeid között, amelyeket 0%-os ÁFA helyett AM vagy egyéb más jelöléssel helyettesítenél? Semmi gond, mert erre is tudunk megoldást nyújtani számodra. A beállításaidnál megadhatod, hogy az ÁFA felülírás a teljes termékpalettádra érvényes legyen, vagy csupán a 0%-os termékekre, ezen felül megadhatod azt is, hogy a szállítási díjakra vonatkozzon e a felülírás vagy sem. Természtesen, felsoroltuk neked azokat a választási lehetőségeket is a felületen, amellyel felülírhatod az alapértékeket.
+*   ÁFA beállítások - Nem a szokványos ÁFA beállításokat kell használnod? Esetlegesen vannak olyan tételek a termékeid között, amelyeket 0%-os ÁFA helyett AM vagy egyéb más jelöléssel helyettesítenél? Semmi gond, mert erre is tudunk megoldást nyújtani számodra. A beállításaidnál megadhatod, hogy az ÁFA felülírás a teljes termékpalettádra érvényes legyen, vagy csupán a 0%-os termékekre, ezen felül megadhatod azt is, hogy a szállítási díjakra vonatkozzon e a felülírás vagy sem. Természtesen, felsoroltuk neked azokat a választási lehetőségeket is a felületen, amellyel felülírhatod az alapértékeket. A hagyományos ÁFA kulcsok mellett az EUK jelölés is választható.
+*   Fizetési/szállítási díj ÁFA felülírása - Külön (kapcsolható) beállításban megadhatod, hogy a rendelés fizetési vagy szállítási díjához (fee) milyen ÁFA kulcsot rendeljünk a számlán, a WooCommerce bruttó/nettó árbeállításának figyelembevételével.
 *   Fizetési módok és kapcsolódó funkciók - A WooCommerceben telepített fizetési módok megjelennek a Billingo modulban. Minden fizetési módod mellett kiválaszthatod azt, hogy mi jelenjen meg a kiállított számlán. Tehát, ha például közvetlen banki utalással fizet valaki, beállíthatod, hogy a számlán a fizetés módja átutalás legyen. Ezen felül minden fizetési mód esetén beállíthatod azt is, hogy hozzunk e létre díjbekérőt, vagy ha az adott rendelés sikeres volt, fizetettnek jelöljük e a kiállított számlát/díjbekérőt. Tehát, ha online bankkártyával fizet a vásárlód, és sikeres a vásárlás, az automatikusan kiállított számla egyből fizetettként kerül kiállításra.
+*   Fizetési státusz automatikus ellenőrzése - Banki átutalásos és egyéb, később fizetendő fizetési módoknál a bővítmény képes automatikusan (óránként) vagy kézi gombnyomásra leellenőrizni a Billingón, hogy a számla kifizetésre került-e, és ha igen, a rendelést automatikusan a fizetési módhoz beállított célállapotra váltja. A funkció fizetési módonként külön be- és kikapcsolható, a célállapot is fizetési módonként testre szabható.
+*   Előlegszámla és végszámla automatikus összekapcsolása - Bekapcsolható beállítással a rendelés a számlázást aktiváló állapot elérésekor először előlegszámlát kap, majd amint a fizetési státusz-ellenőrzés eredményeként a rendelés eléri a hozzá beállított célállapotot, a bővítmény automatikusan legenerálja a végszámlát is, amely a Billingón hivatkozik az előlegszámlára, és a rendszer levonja belőle az előleg összegét.
 *   Kuponok használata - Abban az esetben, ha webáruházadban kuponokat is használsz, a kiállított számláidon ezek a kedvezmények is meg fognak jelenni. Ehhez csupán engedélyezned kell a webshopban a kuponhasználatot, majd a Billingo bővítmény ezt automatikusan feltünteti a számláidon.
 *   Számla értesítő rendszer - A vásárlók tájékoztatása mindig elsődleges szempont a rendelésekkel kapcsolatosan. Ebből nem maradhat ki a számlázás sem. Az általunk készített bővítmény segítségével automatikusan e-mailben elküldheted a felhasználóidnak a kiállított díjbekérőket és számlákat egyaránt.
 *   Rendelések kezelése - A rendelésektől kiállított számlák közvetlenül a rendeléskezelőből is megnyithatók. A PDF fájl letölthető a rendelési adatlapról. Minden számla készítésénél létrehozunk egy megjegyzést a rendeléshez, amin láthatod, hogy mikor és milyen sorszámmal készült el az adott számla.
+*   Manuális bizonylat-azonosító alapú ellenőrzés - Ha a Billingón már létrejött egy bizonylat egy rendeléshez, de a helyi nyilvántartásba valamiért nem került be (pl. duplikált azonosító hiba miatt), a rendelés oldalán megadhatod a Billingo bizonylat-azonosítóját, és a bővítmény (bekapcsolható funkcióként) ellenőrzi és szinkronizálja azt.
+*   Multisite támogatás - Hálózatba (multisite) telepített WooCommerce esetén bekapcsolható, hogy az egyes webhelyek egyedi azonosítóval különüljenek el a Billingo felé küldött rendeléseknél, elkerülve az ütközéseket.
 *   Támogatás és hibakezelés - Bővítményünk fejlesztése során törekszünk arra, hogy minden jelzést megfelelően tudjunk kezelni. Ahhoz, hogy a bejelentéseknek könnyedén utána tudjunk járni, elhelyeztünk egy hibakereső kódot a pluginünkben. Ennek a kódnak és a naplófájloknak köszönhetően, kérdés esetén azonnali segítséget tudunk nyújtani számodra kollégáinkkal.
 
 = HASZNÁLAT =
@@ -57,7 +62,14 @@ Pár kiemelt pont a működéssel kapcsolatosan:
 3. Beállíátsok elmentése után lehetőség van a fizetési módok összepárosítására a billingo rendszerében megfelelővel
 
 == Changelog ==
-= 4.3.3 =
+= 4.3.4 =
+* Új funkció: Előlegszámla és végszámla automatikus összekapcsolása (kapcsolható) - a számlázást aktiváló állapot elérésekor előlegszámlát állít ki a rendszer, majd a fizetési módhoz beállított "Fizetés ellenőrzés célállapotába" kerüléskor automatikusan legenerálja a végszámlát is, amely a Billingón hivatkozik az előlegszámlára
+* Új funkció: Fizetési státusz automatikus és kézi ellenőrzése a Billingón keresztül, fizetési módonként külön be-/kikapcsolható és célállapothoz köthető, kézi "Fizetés ellenőrzése" gomb a rendelés oldalán
+* Új funkció: Manuális Billingo bizonylat-azonosító alapú ellenőrzés és szinkronizálás (kapcsolható) - "duplicate vendor id" hiba esetén könnyen összepárosítható a Billingón már létrejött, de helyileg el nem mentett bizonylat
+* Új funkció: ÁFA felülírás a fizetési/szállítási díjra (fee) is, a WooCommerce bruttó/nettó árbeállításának figyelembevételével (kapcsolható)
+* Új funkció: EUK ÁFA kód támogatás mindkét ÁFA felülírási beállításnál
+* Új funkció: Multisite támogatás - webhelyenkénti egyedi azonosító a Billingo felé küldött rendeléseknél (kapcsolható)
+* Új funkció: Vásárlói megjegyzés felülírhatja az alapértelmezett megjegyzést (kapcsolható) - alapértelmezetten a boltos által beállított állandó számla-megjegyzés mindig megjelenik a számlán, akkor is, ha a vásárló saját megjegyzést írt a megrendeléshez; bekapcsolva a vásárló megjegyzése felülírja az alapértelmezett szöveget
 * Új funkció: 0 Ft-os rendelések számlázásának kihagyása (kapcsolható beállítás)
 * Új funkció: devizától függő számlanyelv (deviza-nyelv hozzárendelés)
 * Új funkció: élő NAV adószám-ellenőrzés a checkoutnál (kapcsolható beállítás)

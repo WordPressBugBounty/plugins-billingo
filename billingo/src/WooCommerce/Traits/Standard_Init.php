@@ -3,6 +3,7 @@
 namespace App\Billingo\WooCommerce\Traits;
 
 use App\Billingo\Enums\Document\TypeEnum;
+use App\Billingo\Enums\PaymentStatusEnum;
 use App\Billingo\Service\BillingoClient;
 use App\Billingo\WooCommerce\Controllers\Billingo_Controller;
 use App\Billingo\WooCommerce\Repositories\Billingo_Repositroy;
@@ -26,6 +27,7 @@ trait Standard_Init
         //add_action('woocommerce_thankyou_order_received_text', [self::class, 'action_woocommerce_email_before_order_table'], 10, 1);
         add_action('wp_ajax_wc_billingo_generate_invoice', [self::class, 'ajax_generateInvoice']);
         add_action('wp_ajax_wc_billingo_storno_invoice', [self::class, 'ajax_stornoInvoice']);
+        add_action('wp_ajax_wc_billingo_check_payment_status', [self::class, 'ajax_checkPaymentStatus']);
         add_action('woocommerce_email_before_order_table', [self::class, 'action_woocommerce_email_before_order_table'], 1, 4);
         //add_action('woocommerce_email_before_order_table', [self::class, 'action_woocommerce_email_before_order_table'], 20, 4);
 
@@ -41,6 +43,180 @@ trait Standard_Init
         // ezt használja), de ne jelenjen meg a rendelés részletes nézetében (admin és
         // frontend/thank-you oldalon sem).
         add_filter('woocommerce_hidden_order_itemmeta', [self::class, 'hide_billingo_price_order_item_meta']);
+
+        // Átutalásos (bacs) rendelések fizetési státuszának időzített ellenőrzése a
+        // Billingo felé. A tényleges munkát a cron callback végzi el, ott dől el (a
+        // beállítás alapján), hogy ténylegesen fusson-e le bármi.
+        if (!wp_next_scheduled('billingo_check_bacs_payment_status')) {
+            wp_schedule_event(time(), 'hourly', 'billingo_check_bacs_payment_status');
+        }
+        add_action('billingo_check_bacs_payment_status', [self::class, 'check_bacs_payment_status']);
+    }
+
+    /**
+     * "Feldolgozásra vár" (on-hold) állapotú rendeléseknél, azoknál a fizetési módoknál,
+     * amelyeknél a Fizetési módok beállításban célállapot van megadva, lekérdezi a
+     * Billingo-tól a hozzájuk tartozó számla fizetési státuszát, és ha az kifizetettként
+     * szerepel, automatikusan a beállított célállapotra váltja a WooCommerce rendelést.
+     */
+    public static function check_bacs_payment_status(): void
+    {
+        if (!wcFlexibleIsTrue(get_option('wc_billingo_bacs_payment_check_enabled'))) {
+            return;
+        }
+
+        Billingo_Logger::info('Fizetési státusz ellenőrzés elindult (cron).');
+
+        foreach (self::get_payment_methods_with_check_status() as $paymentMethodId => $targetStatus) {
+            $orderIds = wc_get_orders([
+                'status' => 'on-hold',
+                'payment_method' => $paymentMethodId,
+                'limit' => -1,
+                'return' => 'ids',
+            ]);
+
+            if (empty($orderIds)) {
+                continue;
+            }
+
+            foreach ($orderIds as $orderId) {
+                self::check_single_order_payment_status((int)$orderId, $targetStatus);
+            }
+        }
+    }
+
+    /**
+     * A Fizetési módok beállításban megadott, "Fizetés ellenőrzés célállapota" mezővel
+     * rendelkező fizetési módokat adja vissza, [fizetési_mód_id => célállapot] alakban.
+     */
+    private static function get_payment_methods_with_check_status(): array
+    {
+        $result = [];
+
+        foreach (WC()->payment_gateways->payment_gateways() as $gateway) {
+            $targetStatus = get_option('wc_billingo_payment_check_status_' . $gateway->id, '');
+
+            if (!empty($targetStatus)) {
+                $result[$gateway->id] = $targetStatus;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Egyetlen rendelés fizetési státuszát ellenőrzi a Billingo-nál, és ha kifizetettként
+     * szerepel, a megadott célállapotra váltja. Mind a cron, mind a kézi ellenőrző gomb
+     * ezt a közös logikát használja.
+     *
+     * @return array{success: bool, paid: bool, message: string}
+     */
+    private static function check_single_order_payment_status(int $orderId, string $targetStatus): array
+    {
+        $repository = new Billingo_Repositroy();
+
+        $row = $repository
+            ->where('order_id', $orderId)
+            ->where('type', TypeEnum::INVOICE->value)
+            ->first();
+
+        // Az előlegszámla -> végszámla automatizmusnál a fizetés-ellenőrzés célállapotát
+        // még a végszámla legenerálása ELŐTT éri el a rendelés, ilyenkor még csak
+        // előlegszámla létezik — ennek a fizetési státuszát ellenőrizzük helyette.
+        if (is_null($row) || empty($row['billingo_id'])) {
+            $row = $repository
+                ->where('order_id', $orderId)
+                ->where('type', TypeEnum::ADVANCE->value)
+                ->first();
+        }
+
+        if (is_null($row) || empty($row['billingo_id'])) {
+            return ['success' => false, 'paid' => false, 'message' => __('Nincs érvényes számla ehhez a rendeléshez.', 'billingo')];
+        }
+
+        $client = new BillingoClient(get_option('wc_billingo_api_key'));
+
+        try {
+            $response = $client->document()->getById((int)$row['billingo_id'])->getResponse();
+        } catch (\Exception $e) {
+            Billingo_Logger::error('Fizetési státusz lekérdezés hiba (rendelés #' . $orderId . '): ' . $e->getMessage());
+
+            return ['success' => false, 'paid' => false, 'message' => __('Hiba történt a Billingo API hívása közben.', 'billingo')];
+        }
+
+        if ($response->getStatusCode() !== Response::HTTP_OK) {
+            return ['success' => false, 'paid' => false, 'message' => __('A Billingo nem adott érvényes választ a számla lekérdezésére.', 'billingo')];
+        }
+
+        $document = $response->getData();
+
+        if (!is_object($document) || !method_exists($document, 'toArray')) {
+            return ['success' => false, 'paid' => false, 'message' => __('A Billingo válasza nem tartalmazza a számla adatait.', 'billingo')];
+        }
+
+        if (($document->payment_status ?? null) !== PaymentStatusEnum::PAID->value) {
+            return ['success' => true, 'paid' => false, 'message' => __('A számla a Billingo szerint még nincs kifizetve.', 'billingo')];
+        }
+
+        $order = wc_get_order($orderId);
+
+        if (!$order) {
+            return ['success' => false, 'paid' => true, 'message' => __('A rendelés nem található.', 'billingo')];
+        }
+
+        $order->update_status(
+            str_replace('wc-', '', $targetStatus),
+            __('A Billingo szerint a számla kifizetésre került, a rendelés állapota automatikusan frissült.', 'billingo')
+        );
+
+        Billingo_Logger::info("Rendelés #{$orderId} állapota frissítve ({$targetStatus}) - Billingo szerint kifizetve.");
+
+        return ['success' => true, 'paid' => true, 'message' => __('A számla kifizetve, a rendelés állapota frissült.', 'billingo')];
+    }
+
+    /**
+     * Kézi "Fizetés ellenőrzése" gomb AJAX kezelője a rendelés oldalon.
+     */
+    public static function ajax_checkPaymentStatus(): void
+    {
+        check_ajax_referer('wc_storno_invoice', 'nonce');
+
+        if (!current_user_can('edit_shop_orders')) {
+            wp_die(esc_html__('You do not have sufficient permissions to access this page.', 'billingo'));
+        }
+
+        if (!isset($_POST['order'])) {
+            wp_send_json_error(['error' => true, 'messages' => [__('A rendelés ID nincs megadva', 'billingo')]]);
+            return;
+        }
+
+        $orderId = (int)$_POST['order'];
+        $order = wc_get_order($orderId);
+
+        if (!$order) {
+            wp_send_json_error(['error' => true, 'messages' => [__('A rendelés nem található', 'billingo')]]);
+            return;
+        }
+
+        $paymentMethod = $order->get_payment_method();
+        $targetStatus = get_option('wc_billingo_payment_check_status_' . $paymentMethod, '');
+
+        if (empty($targetStatus)) {
+            wp_send_json_error([
+                'error' => true,
+                'messages' => [__('Ehhez a fizetési módhoz nincs célállapot beállítva a Fizetési módok oldalon.', 'billingo')],
+            ]);
+            return;
+        }
+
+        $result = self::check_single_order_payment_status($orderId, $targetStatus);
+
+        if (!$result['success']) {
+            wp_send_json_error(['error' => true, 'messages' => [$result['message']]]);
+            return;
+        }
+
+        wp_send_json_success(['error' => false, 'messages' => [$result['message']]]);
     }
 
     /**
@@ -69,7 +245,35 @@ trait Standard_Init
         // Generate proforma/draft if needed, removed because of the thankyou hook
         //self::should_proforma_generate($order_id);
 
-        if (self::should_document_generate($invoice_generation_data)) {
+        if (self::should_generate_advance_invoice_for_pipeline($invoice_generation_data)) {
+            // Az előlegszámla-összekapcsolás kapcsoló be van kapcsolva: a számlázást
+            // aktiváló állapot elérésekor a beállított bizonylattípus helyett mindig
+            // előlegszámlát állítunk ki, a végszámla csak a fizetés-ellenőrzés
+            // célállapotába kerüléskor készül el.
+            Billingo_Logger::info('Előlegszámla generálása a számlázási állapot elérésekor. Rendelés ID: ' . $order_id);
+            Billingo_Logger::startDocumentum();
+
+            $document = $invoice_generation_data->getDocumentGenerator()->getAdvance();
+            if (!is_null($document)) {
+                $invoice_generation_data->getController()->createDocument($document);
+            }
+
+            Billingo_Logger::endDocumentum();
+        } elseif (self::should_generate_final_invoice_from_advance($invoice_generation_data)) {
+            // A rendeléshez már van érvényes előlegszámla, és a rendelés éppen most érte
+            // el a fizetési módjához beállított, fizetés-ellenőrzés utáni célállapotot:
+            // a végszámlát generáljuk le, amely a Billingón automatikusan az előleghez
+            // lesz kapcsolva.
+            Billingo_Logger::info('Végszámla generálása előlegszámla alapján, állapotváltás miatt. Rendelés ID: ' . $order_id);
+            Billingo_Logger::startDocumentum();
+
+            $document = $invoice_generation_data->getDocumentGenerator()->getInvoice();
+            if (!is_null($document)) {
+                $invoice_generation_data->getController()->createDocument($document);
+            }
+
+            Billingo_Logger::endDocumentum();
+        } elseif (self::should_document_generate($invoice_generation_data)) {
             Billingo_Logger::startDocumentum();
 
             $document = $invoice_generation_data->getDocumentGenerator()->get();
@@ -522,6 +726,91 @@ trait Standard_Init
     private static function should_document_generate(Invoice_Generation_Container $invoice_generation_data): bool
     {
         return $invoice_generation_data->getStatus() === $invoice_generation_data->getActivationStatus();
+    }
+
+    /**
+     * Megnézzük, hogy a rendelés fizetési módjához be van -e állítva a "Fizetés
+     * ellenőrzés célállapota" (Fizetési módok beállítás) — az előlegszámla -> végszámla
+     * automatizmus csak azoknál a fizetési módoknál fut le, amelyeknél ezt a boltos
+     * kifejezetten beállította, a többi fizetési módnál az általános, egylépéses
+     * generálási logika marad érvényben.
+     */
+    private static function get_payment_check_target_status(WC_Order $order): ?string
+    {
+        $targetStatus = get_option('wc_billingo_payment_check_status_' . $order->get_payment_method(), '');
+
+        return empty($targetStatus) ? null : str_replace('wc-', '', $targetStatus);
+    }
+
+    /**
+     * Megnézzük, hogy a rendelés éppen most érte -e el a számlázást aktiváló állapotot,
+     * és a kapcsoló + a fizetési módjához beállított "Fizetés ellenőrzés célállapota"
+     * miatt ilyenkor előlegszámlát kell -e kiállítani (a végszámla csak a fizetés-
+     * ellenőrzés célállapotába kerüléskor készül el). Ha még nincs előlegszámla a
+     * rendeléshez, azt most kell legenerálni.
+     */
+    private static function should_generate_advance_invoice_for_pipeline(Invoice_Generation_Container $invoice_generation_data): bool
+    {
+        if (!wcFlexibleIsTrue(get_option('wc_billingo_advance_invoice_linking_enabled'))) {
+            return false;
+        }
+
+        if ($invoice_generation_data->getStatus() !== $invoice_generation_data->getActivationStatus()) {
+            return false;
+        }
+
+        // Csak azoknál a fizetési módoknál fusson le az előlegszámla -> végszámla
+        // automatizmus, amelyeknél a boltos beállította a fizetés-ellenőrzés célállapotát.
+        if (self::get_payment_check_target_status($invoice_generation_data->getOrder()) === null) {
+            return false;
+        }
+
+        $order_id = $invoice_generation_data->getOrder()->get_id();
+
+        $existing_advance = $invoice_generation_data->getRepositroy()
+            ->where('order_id', $order_id)
+            ->where('type', TypeEnum::ADVANCE->value)
+            ->first();
+
+        return !$existing_advance;
+    }
+
+    /**
+     * Megnézzük, hogy a végszámlát az előlegszámlához kell -e automatikusan
+     * legenerálni az állapotváltás hatására: a kapcsoló be van kapcsolva, a rendelés
+     * fizetési módjához be van állítva a fizetés-ellenőrzés célállapota, a rendelés
+     * éppen ebbe az állapotba került, van hozzá érvényes (nem sztornózott)
+     * előlegszámla, és még nincs a rendeléshez végszámla generálva.
+     */
+    private static function should_generate_final_invoice_from_advance(Invoice_Generation_Container $invoice_generation_data): bool
+    {
+        if (!wcFlexibleIsTrue(get_option('wc_billingo_advance_invoice_linking_enabled'))) {
+            return false;
+        }
+
+        $targetStatus = self::get_payment_check_target_status($invoice_generation_data->getOrder());
+
+        if ($targetStatus === null || $invoice_generation_data->getStatus() !== $targetStatus) {
+            return false;
+        }
+
+        $order_id = $invoice_generation_data->getOrder()->get_id();
+
+        $existing_invoice = $invoice_generation_data->getRepositroy()
+            ->where('order_id', $order_id)
+            ->where('type', TypeEnum::INVOICE->value)
+            ->first();
+
+        if ($existing_invoice) {
+            return false;
+        }
+
+        $advance_invoice = $invoice_generation_data->getRepositroy()
+            ->where('order_id', $order_id)
+            ->where('type', TypeEnum::ADVANCE->value)
+            ->first();
+
+        return $advance_invoice && !empty($advance_invoice['billingo_id']);
     }
 
     private static function should_cancel_document(Invoice_Generation_Container $invoice_generation_data): bool

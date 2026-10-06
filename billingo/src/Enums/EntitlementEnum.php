@@ -10,6 +10,7 @@ enum EntitlementEnum: string
     case ATK = 'ATK';
     case EAM = 'EAM';
     case EUE = 'EUE';
+    case EUK = 'EUK';
     case EUFAD37 = 'EUFAD37';
     case EUFADE = 'EUFADE';
     case HO = 'HO';

@@ -956,6 +956,25 @@
 
                             <tr valign="top">
                                 <th scope="row" class="billingo-invoice-settings-field-container">
+                                    <label class="billingo-field-name-right-column" for="wc_billingo_customer_note_override_enabled">{{ 'Vásárlói megjegyzés felülírhatja az alapértelmezett megjegyzést'|esc_html_translate }}</label>
+                                        <p class="billingo-field-description-italic-right-column">{{ 'Ha ki van kapcsolva, a fenti „Megjegyzés” mezőben
+                                            beállított szöveg mindig megjelenik a számlákon, akkor is, ha a vásárló a
+                                            megrendelés során saját megjegyzést írt be. Ha be van kapcsolva, a vásárló
+                                            megjegyzése felülírja a fenti alapértelmezett szöveget.'|esc_html_translate }}</p>
+                                </th>
+                                <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
+                                    <fieldset>
+                                        <legend class="screen-reader-text"><span>{{ 'Vásárlói megjegyzés felülírhatja az alapértelmezett megjegyzést'|esc_html_translate }}</span></legend>
+                                        <label for="wc_billingo_customer_note_override_enabled" class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="wc_billingo_customer_note_override_enabled" name="wc_billingo_customer_note_override_enabled" value="1" class="sr-only peer" {% if customer_note_override_enabled=='1' %}checked="checked"{% endif %}>
+                                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        </label>
+                                    </fieldset>
+                                </td>
+                            </tr>
+
+                            <tr valign="top">
+                                <th scope="row" class="billingo-invoice-settings-field-container">
                                     <label class="billingo-field-name-right-column" for="wc_billingo_note_orderid">{{ 'Megrendelés azonosító hozzáadása a megjegyzéshez'|esc_html_translate }}</label>
                                 </th>
                                 <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
@@ -1112,6 +1131,59 @@
                                         <label for="wc_billingo_test" class="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" id="wc_billingo_test" name="wc_billingo_test" value="1" class="sr-only peer" {% if testmode=='1' %}checked="checked"{% endif %}>
                                             <div class="w-11 h-6 bg-red-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-red-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+                                        </label>
+                                    </fieldset>
+                                </td>
+                            </tr>
+
+                            <tr valign="top">
+                                <th scope="row" class="billingo-invoice-settings-field-container" style="vertical-align: top !important; padding-bottom: 15px;">
+                                    <label class="billingo-field-name-right-column" for="wc_billingo_multisite_enabled">{{ 'Multisite támogatás'|esc_html_translate }}</label>
+                                        <p class="billingo-field-description-italic-right-column" style="height: auto;">{{ 'Ha ugyanaz a Billingo fiók több különálló webshophoz van kötve, a rendelés
+                                            azonosítók ütközhetnek (pl. mindkét oldalon lehet #100-as rendelés) — ez a Billingo oldali
+                                            duplikátumszűrést tévesen kiválthatja. Bekapcsolás esetén az alábbi egyedi site azonosító
+                                            bekerül minden bizonylat vendor_id mezőjébe, elkerülve az ütközést.'|esc_html_translate }}</p>
+                                </th>
+                                <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
+                                    <fieldset>
+                                        <legend class="screen-reader-text"><span>{{ 'Multisite támogatás'|esc_html_translate }}</span></legend>
+                                        <label for="wc_billingo_multisite_enabled" class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="wc_billingo_multisite_enabled" name="wc_billingo_multisite_enabled" value="1" class="sr-only peer" {% if multisite_enabled=='1' %}checked="checked"{% endif %}>
+                                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        </label>
+                                    </fieldset>
+                                </td>
+                            </tr>
+
+                            <tr valign="top" id="billingo_multisite_identifier_row" style="{% if multisite_enabled != '1' %}display: none;{% endif %}">
+                                <th scope="row" class="billingo-invoice-settings-field-container">
+                                    <label class="billingo-field-name" for="wc_billingo_multisite_identifier">{{ 'Egyedi site azonosító'|esc_html_translate }}</label>
+                                </th>
+                                <td class="forminp-text">
+                                    <input name="wc_billingo_multisite_identifier"
+                                        id="wc_billingo_multisite_identifier" type="text" class="billingo-invoice-settings-text-input-normal"
+                                        maxlength="20"
+                                        value="{{ multisite_identifier|esc_attr }}" />
+                                    <p class="billingo-field-description-italic">{{ 'Rövid, csak erre a webshopra jellemző azonosító (pl. "A", "webshop1"). Minden, ugyanazt a Billingo fiókot használó webshopon más-más értéket adj meg.'|esc_html_translate }}</p>
+                                </td>
+                            </tr>
+
+                            <tr valign="top">
+                                <th scope="row" class="billingo-invoice-settings-field-container">
+                                    <label class="billingo-field-name-right-column" for="wc_billingo_advance_invoice_linking_enabled">{{ 'Végszámla automatikus generálása előlegszámlából'|esc_html_translate }}</label>
+                                        <p class="billingo-field-description-italic-right-column">{{ 'Csak azoknál a fizetési módoknál működik, amelyeknél a Fizetési módok
+                                            oldalon be van állítva a „Fizetés ellenőrzés célállapota”. Ha be van kapcsolva: a számlázást
+                                            aktiváló állapot elérésekor a rendszer előlegszámlát állít ki, majd amikor a rendelés — a fizetés-
+                                            ellenőrzés eredményeként — eléri a célállapotot, automatikusan legenerálja a végszámlát is, amely
+                                            a Billingón hivatkozik az előlegszámlára — a Billingo levonja az előleg összegét a
+                                            végszámláról.'|esc_html_translate }}</p>
+                                </th>
+                                <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
+                                    <fieldset>
+                                        <legend class="screen-reader-text"><span>{{ 'Végszámla automatikus generálása előlegszámlából'|esc_html_translate }}</span></legend>
+                                        <label for="wc_billingo_advance_invoice_linking_enabled" class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="wc_billingo_advance_invoice_linking_enabled" name="wc_billingo_advance_invoice_linking_enabled" value="1" class="sr-only peer" {% if advance_invoice_linking_enabled=='1' %}checked="checked"{% endif %}>
+                                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                                         </label>
                                     </fieldset>
                                 </td>

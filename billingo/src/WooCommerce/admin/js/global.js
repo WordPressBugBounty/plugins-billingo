@@ -105,6 +105,16 @@ jQuery(document).ready(function ($) {
         $("#wc_billingo_invoice_lang_by_currency_enabled").change(updateCurrencyLangMapVisibility);
     }
 
+    function updateMultisiteIdentifierVisibility() {
+        let enabled = $("#wc_billingo_multisite_enabled").is(":checked");
+        $("#billingo_multisite_identifier_row").css("display", enabled ? "table-row" : "none");
+    }
+
+    if ($("#wc_billingo_multisite_enabled").length) {
+        updateMultisiteIdentifierVisibility();
+        $("#wc_billingo_multisite_enabled").change(updateMultisiteIdentifierVisibility);
+    }
+
     jQuery("#wc_billingo_generate").click(function (e) {
         e.preventDefault();
         let r = confirm("Biztosan létrehozod a számlát?");
@@ -401,6 +411,48 @@ jQuery(document).ready(function ($) {
             if (!response.data.error) {
                 button.slideUp();
             }
+
+            button.unblock();
+        });
+    });
+
+    jQuery("#wc_billingo_check_payment").click(function (e) {
+        e.preventDefault();
+        let nonce = jQuery(this).data("nonce");
+        let order = jQuery(this).data("order");
+        let button = jQuery("#wc_billingo_check_payment");
+
+        let data = {
+            action: "wc_billingo_check_payment_status",
+            nonce: nonce,
+            order: order
+        };
+
+        button.block({
+            message: null,
+            overlayCSS: {
+                background: "#fff url(" + wc_billingo_params.loading + ") no-repeat center",
+                backgroundSize: "16px 16px",
+                opacity: 0.6
+            }
+        });
+
+        jQuery.post(ajaxurl, data, function (response) {
+            jQuery(".wc-billingo-message").remove();
+
+            if (response.data.error) {
+                button.before('<div class="wc-billingo-error error wc-billingo-message"></div>');
+            } else {
+                button.before('<div class="wc-billingo-success updated wc-billingo-message"></div>');
+            }
+
+            let ul = jQuery("<ul>");
+            jQuery.each(response.data.messages, function (i, value) {
+                let li = jQuery("<li>");
+                li.append(value);
+                ul.append(li);
+            });
+            jQuery(".wc-billingo-message").append(ul);
 
             button.unblock();
         });
