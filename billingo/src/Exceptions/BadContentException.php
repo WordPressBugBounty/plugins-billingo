@@ -11,7 +11,7 @@ class BadContentException extends BillingoException
     public function __construct(
         private readonly SelfTest $selfTest,
         int $code = 0,
-        Exception $previous = null
+        ?Exception $previous = null
     ) {
         parent::__construct($code, $previous);
     }

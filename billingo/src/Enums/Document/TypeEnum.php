@@ -29,6 +29,19 @@ enum TypeEnum: string
             self::PROFORMA => 'Díjbekérő',
             self::DRAFT => 'Piszkozat',
             self::CANCELLATION => 'Sztornó',
+            self::ADVANCE => 'Előlegszámla',
+            self::CERT_OF_COMPLETION => 'Teljesítésigazolás',
+            self::D_CERT_OF_COMPLETION => 'Teljesítésigazolás piszkozat',
+            self::DOSSIER => 'Dosszié',
+            self::DRAFT_OFFER => 'Árajánlat piszkozat',
+            self::DRAFT_ORDER_FORM => 'Megrendelő piszkozat',
+            self::DRAFT_WAYBILL => 'Szállítólevél piszkozat',
+            self::MODIFICATION => 'Módosító számla',
+            self::OFFER => 'Árajánlat',
+            self::ORDER_FORM => 'Megrendelő',
+            self::RECEIPT => 'Nyugta',
+            self::RECEIPT_CANCELLATION => 'Nyugta sztornó',
+            self::WAYBILL => 'Szállítólevél',
         };
     }
 }

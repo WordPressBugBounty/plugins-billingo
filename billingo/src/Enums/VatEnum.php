@@ -52,7 +52,8 @@ enum VatEnum: string
 
     public static function fromNumber(string $number): ?self
     {
-        $number = (float)$number . '%';
+        // Tizedesvessző: a (float)"5,5" különben 5-re csonkolna, és a 5,5% csendben 5%-ra képződne le.
+        $number = (float)str_replace(',', '.', $number) . '%';
         $number = str_replace('.', ',', $number);
 
         try {

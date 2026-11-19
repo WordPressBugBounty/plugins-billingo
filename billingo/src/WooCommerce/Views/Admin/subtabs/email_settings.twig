@@ -323,7 +323,7 @@
         .email-columns {
             flex-wrap: wrap;
         }
-        .proforma-column, .storno-column {
+        .proforma-column, .advance-column, .storno-column {
             width: auto;
         }
 
@@ -361,7 +361,7 @@
         .email-columns {
             flex-wrap: wrap;
         }
-        .proforma-column {
+        .proforma-column, .advance-column {
             width: 100%;
         }
         .invoice-column, .storno-column {
@@ -390,7 +390,7 @@
         .email-columns {
             flex-wrap: wrap;
         }
-        .proforma-column {
+        .proforma-column, .advance-column {
             width: 100%;
         }
         
@@ -594,6 +594,114 @@
                     <!-- Számla template small screen -->
 
                     <div class="email-template billingo-email-settings-fourth-row">processing</div>
+                </div>
+            </div>
+            
+            <!-- Előlegszámla (Advance) section -->
+            <div class="email-row advance-section-row">
+                <div class="email-labels advance-section-labels">
+                    <div class="email-label"></div>
+                    <div class="email-label billingo-field-name-email-settings billingo-email-settings-first-row">{{
+                        'Küldés' | esc_html_translate }}</div>
+                    <div class="email-label billingo-field-name-email-settings billingo-email-settings-second-row billingo-email-settings-second-row-medium">
+                        {{ 'Gomb szöveg' | esc_html_translate }}
+                        <div class="billingo-field-description-italic">
+                            {{ 'Ez a gomb szövege az emailben, ha a csatolás be van kapcsolva.' | esc_html_translate }}
+                        </div>
+                    </div>
+                    <div class="email-label billingo-field-name-email-settings billingo-email-settings-third-row">
+                        {{ 'Gomb feletti szöveg' | esc_html_translate }}
+                        <div class="billingo-field-description-italic">
+                            {{ 'Ez az üzenet jelenik meg az emailben, ha a csatolás be van kapcsolva.' |
+                            esc_html_translate }}
+                        </div>
+                    </div>
+                    <div class="email-label billingo-field-name-email-settings billingo-email-settings-fourth-row-first-column">{{
+                        'WooCommerce template' | esc_html_translate }}
+                        <div class="billingo-field-description-italic">
+                            {{ 'Ez az üzenet jelenik meg az emailben, ha a csatolás be van kapcsolva.' |
+                            esc_html_translate }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Előlegszámla column -->
+                <div class="email-column advance-column">
+                    <div class="email-column-header">
+                            <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <g clip-path="url(#clip0_33_1278)">
+                                <path d="M38 0H6C2.68629 0 0 2.68629 0 6V38C0 41.3137 2.68629 44 6 44H38C41.3137 44 44 41.3137 44 38V6C44 2.68629 41.3137 0 38 0Z" fill="#FCE3B6"/>
+                                <path d="M26.0249 24.25H18.0249C17.826 24.25 17.6352 24.329 17.4946 24.4697C17.3539 24.6103 17.2749 24.8011 17.2749 25C17.2749 25.1989 17.3539 25.3897 17.4946 25.5303C17.6352 25.671 17.826 25.75 18.0249 25.75H26.0249C26.2238 25.75 26.4146 25.671 26.5552 25.5303C26.6959 25.3897 26.7749 25.1989 26.7749 25C26.7749 24.8011 26.6959 24.6103 26.5552 24.4697C26.4146 24.329 26.2238 24.25 26.0249 24.25Z" fill="#C68F2E"/>
+                                <path d="M26.0249 20.25H18.0249C17.826 20.25 17.6352 20.329 17.4946 20.4697C17.3539 20.6103 17.2749 20.8011 17.2749 21C17.2749 21.1989 17.3539 21.3897 17.4946 21.5303C17.6352 21.671 17.826 21.75 18.0249 21.75H26.0249C26.2238 21.75 26.4146 21.671 26.5552 21.5303C26.6959 21.3897 26.7749 21.1989 26.7749 21C26.7749 20.8011 26.6959 20.6103 26.5552 20.4697C26.4146 20.329 26.2238 20.25 26.0249 20.25Z" fill="#C68F2E"/>
+                                <path d="M29.8051 10.958H18.0251C17.894 10.9577 17.7641 10.9834 17.6429 11.0335C17.5218 11.0836 17.4117 11.1572 17.3191 11.25L11.2681 17.292C11.1751 17.385 11.1014 17.4953 11.0511 17.6168C11.0008 17.7383 10.975 17.8685 10.9751 18V27.785C10.9756 28.3721 11.209 28.9351 11.6241 29.3503C12.0391 29.7656 12.602 29.9992 13.1891 30H26.8351L31.5001 32.892C31.6581 32.9899 31.8402 33.0419 32.0261 33.042C32.1964 33.0419 32.3638 32.9989 32.5131 32.917C32.6689 32.8302 32.7986 32.7032 32.8888 32.5494C32.979 32.3955 33.0264 32.2204 33.0261 32.042V14.178C33.0253 13.3241 32.6857 12.5054 32.0818 11.9017C31.4778 11.2979 30.659 10.9585 29.8051 10.958ZM17.0251 14.369V17H14.3911L17.0251 14.369ZM31.0251 30.246L27.6461 28.146C27.4877 28.0495 27.3056 27.999 27.1201 28H13.1891C13.1609 28 13.133 27.9944 13.107 27.9836C13.0809 27.9728 13.0573 27.957 13.0374 27.937C13.0175 27.917 13.0018 27.8933 12.9911 27.8672C12.9804 27.8411 12.975 27.8132 12.9751 27.785V19H18.0251C18.2903 19 18.5447 18.8947 18.7322 18.7071C18.9197 18.5196 19.0251 18.2652 19.0251 18V12.958H29.8051C30.1286 12.9583 30.4387 13.0869 30.6675 13.3156C30.8962 13.5444 31.0248 13.8545 31.0251 14.178V30.246Z" fill="#C68F2E"/>
+                                </g>
+                                <defs>
+                                <clipPath id="clip0_33_1278">
+                                <rect width="44" height="44" fill="white"/>
+                                </clipPath>
+                                </defs>
+                                </svg>
+                        <div class="billingo-field-name-email-settings">{{ 'Előlegszámla' | esc_html_translate }}</div>
+                    </div>
+
+                    <!-- Küldés small screen -->
+                    <div class="billingo-field-name-email-settings small-screen-label" >{{
+                        'Küldés' | esc_html_translate }}</div>
+                    <!-- Küldés small screen -->
+
+                    <div class="billingo-email-settings-input-first-row">
+                        <select class="billingo-email-settings-select"
+                            name="billingo_email_settings[wc_billingo_advance_email]">
+                            {% for key, value in options %}
+                            <option value="{{ key | esc_attr }}" {{ selected(key, email_advance) }}>
+                                {{ value | esc_html_translate }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Gomb szöveg small screen -->
+                    <div class="billingo-field-name-email-settings small-screen-label">
+                        {{ 'Gomb szöveg' | esc_html_translate }}
+                        <div class="billingo-field-description-italic small-screen-description">
+                            {{ 'Ez a gomb szövege az emailben, ha a csatolás be van kapcsolva.' | esc_html_translate }}
+                        </div>
+                    </div>
+                    <!-- Gomb szöveg small screen -->
+
+                    <div class="billingo-email-settings-text-input-container">
+                        <input class="billingo-email-settings-input-second-row" type="text"
+                            name="billingo_email_settings[wc_billingo_advance_email_woo_btn]"
+                            value="{{ btn_text_advance | e }}"
+                            placeholder="{{ 'Előlegszámla letöltése' | esc_attr }}" />
+                    </div>
+                    <!-- Gomb feletti szöveg small screen -->
+                    <div class="billingo-field-name-email-settings small-screen-label">
+                        {{ 'Gomb feletti szöveg' | esc_html_translate }}
+                        <div class="billingo-field-description-italic small-screen-description">
+                            {{ 'Ez az üzenet jelenik meg az emailben, ha a csatolás be van kapcsolva.' |
+                            esc_html_translate }}
+                        </div>
+                    </div>
+                    <!-- Gomb feletti szöveg small screen -->
+
+                    <div class="billingo-email-settings-text-input-container">
+                        <input class="billingo-email-settings-input-third-row" type="text"
+                            name="billingo_email_settings[wc_billingo_advance_email_woo_text]"
+                            value="{{ text_advance | e }}"
+                            placeholder="{{ 'Előlegszámlája elkészült, melyet az alábbi linken tud letölteni.' | esc_html_translate }}" />
+                    </div>
+                    <!-- Számla template small screen -->
+                    <div class="billingo-field-name-email-settings small-screen-label">{{
+                        'WooCommerce template' | esc_html_translate }}
+                        <div class="billingo-field-description-italic small-screen-description">
+                            {{ 'Ez az üzenet jelenik meg az emailben, ha a csatolás be van kapcsolva.' |
+                            esc_html_translate }}
+                        </div>
+                    </div>
+                    <!-- Számla template small screen -->
+
+                    <div class="email-template billingo-email-settings-fourth-row">on-hold / processing</div>
                 </div>
             </div>
             

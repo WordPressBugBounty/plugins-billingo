@@ -8,7 +8,7 @@ use App\Billingo\Exceptions\BillingoException;
 use App\Billingo\Models\BillingoModel;
 use App\Billingo\Validation\Validator;
 use Closure;
-use http\Exception\BadMethodCallException;
+use BadMethodCallException;
 
 abstract class BillingoQuery implements BillingoQueryInterface
 {

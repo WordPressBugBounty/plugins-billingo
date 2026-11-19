@@ -162,9 +162,11 @@ abstract class BillingoModel implements SerializableInterface, SelfControlInterf
             return;
         }
 
-        if (isset($this->properties[$name])) {
-
-            $this->properties[$name] = $value;
-        }
+        // Korábban itt még az isset($this->properties[$name]) is feltétel volt, ami a hiányzó vagy
+        // null értékű property-nél csendben eldobta az értékadást (pl. egy 'entitlement' => null
+        // tételre a későbbi $item->entitlement = 'KBAET' hatástalan maradt). Az ismeretlen
+        // mezőneveket a validateProperty() már elutasítja (nincs hozzá szabály), így erre az
+        // isset() őrre nincs szükség.
+        $this->properties[$name] = $value;
     }
 }

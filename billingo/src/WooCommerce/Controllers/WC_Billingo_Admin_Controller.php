@@ -210,6 +210,7 @@ class WC_Billingo_Admin_Controller
 
         $error_message = '';
         $document_blocks =  self::get_formatted_document_blocks($this->client);
+        $document_blocks = $this->keepStoredOption($document_blocks, get_option('wc_billingo_invoice_block', ''));
 
 
 
@@ -255,6 +256,8 @@ class WC_Billingo_Admin_Controller
 
         $data_eraser_code = get_wp_translated_enum(DeleteCodeEnum::class, true);
         $bank_accounts = $this->get_formatted_bank_accounts();
+        $bank_accounts = $this->keepStoredOption($bank_accounts, get_option('wc_billingo_bank_account_huf', ''));
+        $bank_accounts = $this->keepStoredOption($bank_accounts, get_option('wc_billingo_bank_account_eur', ''));
 
         // Get available payment methods
         $bpms = get_wp_translated_enum(PaymentMethodEnum::class, true);
@@ -300,6 +303,7 @@ class WC_Billingo_Admin_Controller
             'invoice_lang_wpml' => get_option('wc_billingo_invoice_lang_wpml', '0'),
             'note_orderid' => get_option('wc_billingo_note_orderid', '0'),
             'customer_note_override_enabled' => get_option('wc_billingo_customer_note_override_enabled', '0'),
+            'mediated_service_by_shipping' => get_option('wc_billingo_mediated_service_by_shipping', '0'),
             'block_child_orders' => get_option('wc_billingo_block_child_orders', '0'),
             'vat_number_form' => get_option('wc_billingo_vat_number_form', '0'),
             'vat_number_form_checkbox_custom' => get_option('wc_billingo_vat_number_form_checkbox_custom', '0'),
@@ -310,6 +314,7 @@ class WC_Billingo_Admin_Controller
             'skip_zero_total' => get_option('wc_billingo_skip_zero_total', '0'),
             'invoice_lang_by_currency_enabled' => get_option('wc_billingo_invoice_lang_by_currency_enabled', '0'),
             'vat_number_live_check' => get_option('wc_billingo_vat_number_live_check', '0'),
+            'vat_number_autofill' => get_option('wc_billingo_vat_number_autofill', '0'),
             'manual_id_check_enabled' => get_option('wc_billingo_manual_id_check_enabled', '0'),
             'multisite_enabled' => get_option('wc_billingo_multisite_enabled', '0'),
             'advance_invoice_linking_enabled' => get_option('wc_billingo_advance_invoice_linking_enabled', '0'),
@@ -367,12 +372,17 @@ class WC_Billingo_Admin_Controller
             'selected_tax_override_value' => get_option('wc_billingo_tax_override_value', ''),
             'selected_tax_override_zero_entitlement' => get_option('wc_billingo_tax_override_zero_entitlements', ''),
             'tax_override_include_carrier' => (int)get_option('wc_billingo_tax_override_include_carrier', 0),
-            'tax_shipping_pirce_type_is_net' => (int)get_option('wc_billingo_tax_shipping_pirce_type_is_net', 0),
+            'shipping_price_mode' => get_option('wc_billingo_shipping_price_mode') === 'net' ? 'net' : 'gross',
             'always_add_carrier' => (int)get_option('wc_billingo_always_add_carrier', 0),
             'entitlements' => $entitlements,
             'taxes' => $onlyTaxes,
             'fee_vat_options' => $feeVatOptions,
             'selected_fee_vat_override' => get_option('wc_billingo_fee_vat_override', ''),
+            'fee_vat_follow_order' => (int)get_option('wc_billingo_fee_vat_follow_order', 0),
+            'sku_vat_enabled' => (int)get_option('wc_billingo_sku_vat_enabled', 0),
+            'sku_vat_skus' => (string)get_option('wc_billingo_sku_vat_skus', ''),
+            'sku_vat_options' => array_combine($allVatValues, $allVatValues),
+            'selected_sku_vat_code' => get_option('wc_billingo_sku_vat_code', 'TAM'),
         ]);
 
         echo $html;
@@ -398,11 +408,14 @@ class WC_Billingo_Admin_Controller
             'email_invoice' => get_option('wc_billingo_email', 'no'),
             'email_proforma' => get_option('wc_billingo_proforma_email', 'no'),
             'email_storno' => get_option('wc_billingo_storno_email', 'no'),
+            'email_advance' => get_option('wc_billingo_advance_email', 'no'),
             'btn_text_proforma' => get_option('wc_billingo_proforma_email_woo_btn', __('Díjbekérő letöltése', 'billingo')),
             'btn_text_invoice' => get_option('wc_billingo_email_woo_btn', __('Számla letöltése', 'billingo')),
+            'btn_text_advance' => get_option('wc_billingo_advance_email_woo_btn', __('Előlegszámla letöltése', 'billingo')),
             'btn_text_storno' => get_option('wc_billingo_storno_email_woo_btn', __('Storno számla letöltése', 'billingo')),
             'text_proforma' => get_option('wc_billingo_proforma_email_woo_text', __('Díjbekérője elkészült, melyet az alábbi linken tud letölteni.', 'billingo')),
             'text_invoice' => get_option('wc_billingo_email_woo_text', __('Számlája elkészült, melyet az alábbi linken tud letölteni.', 'billingo')),
+            'text_advance' => get_option('wc_billingo_advance_email_woo_text', __('Előlegszámlája elkészült, melyet az alábbi linken tud letölteni.', 'billingo')),
             'text_storno' => get_option('wc_billingo_storno_email_woo_text', __('Storno számlája elkészült, melyet az alábbi linken tud letölteni.', 'billingo'))
         ]);
 
@@ -473,24 +486,14 @@ class WC_Billingo_Admin_Controller
         $debug_code = json_encode($debug_info, JSON_PRETTY_PRINT);
 
         // logs
-        $log_path = BILLINGO__PLUGIN_DIR . 'log/';
-
         $combined_logs = '';
 
-        if (file_exists($log_path) && is_dir($log_path)) {
-            $files = array_filter(scandir($log_path), function ($file) use ($log_path) {
-                // filter the upper going directories
-                return $file !== '.' && $file !== '..' && is_file($log_path . $file);
-            });
-
-            // return the last 2 log files content
-            $latest_files = array_slice($files, -2);
-
-            foreach ($latest_files as $file) {
-                $combined_logs .= "=== $file ===\n";
-                $combined_logs .= file_get_contents($log_path . $file);
-                $combined_logs .= "\n\n";
-            }
+        // Csak a tényleges naplófájlok, a legutóbbi 2 napról: a védőfájlok (.htaccess, index.php) korábban
+        // a "legutóbbi 2 fájl" közé is bekerülhettek.
+        foreach (array_slice(\App\Billingo\WooCommerce\Service\Billingo_Logger::getLogFiles(), -2) as $file) {
+            $combined_logs .= "=== " . basename($file) . " ===\n";
+            $combined_logs .= file_get_contents($file);
+            $combined_logs .= "\n\n";
         }
 
         $html = view('Admin.subtabs.support', [
@@ -539,6 +542,24 @@ class WC_Billingo_Admin_Controller
     /**
      * @return array
      */
+    /**
+     * A Billingóból lekért választólistákba (számlatömb, bankszámla) a MÁR MENTETT azonosítót is beteszi, ha az
+     * nincs a listában. Enélkül, ha a Billingo API éppen nem elérhető (hiba, időtúllépés, korlátozás), a lista
+     * csak az "Alapértelmezett" üres elemet tartalmazza, és a beállítások mentése csendben ÜRESRE írná a
+     * számlatömböt / bankszámlát (a számlák így az alapértelmezett sorszámtartományban készülnének). Ugyanez
+     * történik, ha a mentett azonosító nem az első oldalon van, vagy közben törölték a Billingón.
+     */
+    private function keepStoredOption(array $options, mixed $storedId): array
+    {
+        $storedId = (string)$storedId;
+
+        if ($storedId === '' || array_key_exists($storedId, $options)) {
+            return $options;
+        }
+
+        return [$storedId => sprintf(__('Mentett azonosító: %s (a Billingóból most nem érhető el)', 'billingo'), $storedId)] + $options;
+    }
+
     private function get_formatted_bank_accounts(): array
     {
         $bank_accounts = [];
@@ -709,7 +730,6 @@ class WC_Billingo_Admin_Controller
         $text_fields = [
             'wc_billingo_bank_account_huf',
             'wc_billingo_bank_account_eur',
-            'wc_billingo_note',
             'wc_billingo_unit',
             'wc_billingo_fallback_payment',
             'wc_billingo_invoice_lang',
@@ -731,6 +751,11 @@ class WC_Billingo_Admin_Controller
                 $value = sanitize_text_field(wp_unslash($_POST[$field]));
                 update_option($field, $value);
             }
+        }
+
+        // A számla-megjegyzés textarea: a sanitize_text_field a sortöréseket egyetlen sorrá lapítaná.
+        if (isset($_POST['wc_billingo_note'])) {
+            update_option('wc_billingo_note', sanitize_textarea_field(wp_unslash($_POST['wc_billingo_note'])));
         }
 
         // Több soros mező (DEVIZA=nyelvkód párok), sanitize_text_field levágná a sortöréseket
@@ -762,10 +787,12 @@ class WC_Billingo_Admin_Controller
             'wc_billingo_skip_zero_total',
             'wc_billingo_invoice_lang_by_currency_enabled',
             'wc_billingo_vat_number_live_check',
+            'wc_billingo_vat_number_autofill',
             'wc_billingo_manual_id_check_enabled',
             'wc_billingo_multisite_enabled',
             'wc_billingo_advance_invoice_linking_enabled',
             'wc_billingo_customer_note_override_enabled',
+            'wc_billingo_mediated_service_by_shipping',
         ];
 
         foreach ($checkbox_fields as $field) {
@@ -822,11 +849,30 @@ class WC_Billingo_Admin_Controller
             }
         }
 
+        // Cikkszám szerinti ÁFA kulcs: a cikkszámok listája és a kulcs / jogcím (csak érvényes Billingo kulcs menthető)
+        if (isset($_POST['wc_billingo_sku_vat_skus'])) {
+            update_option('wc_billingo_sku_vat_skus', sanitize_text_field(wp_unslash($_POST['wc_billingo_sku_vat_skus'])));
+        }
+
+        if (isset($_POST['wc_billingo_sku_vat_code'])) {
+            $skuVatCode = sanitize_text_field(wp_unslash($_POST['wc_billingo_sku_vat_code']));
+
+            if (VatEnum::tryFrom($skuVatCode) !== null) {
+                update_option('wc_billingo_sku_vat_code', $skuVatCode);
+            }
+        }
+
         $checkbox_fields = [
             'wc_billingo_tax_override_include_carrier',
             'wc_billingo_always_add_carrier',
-            'wc_billingo_tax_shipping_pirce_type_is_net'
+            'wc_billingo_fee_vat_follow_order',
+            'wc_billingo_sku_vat_enabled',
         ];
+
+        if (isset($_POST['wc_billingo_shipping_price_mode'])) {
+            $shippingMode = sanitize_text_field(wp_unslash($_POST['wc_billingo_shipping_price_mode']));
+            update_option('wc_billingo_shipping_price_mode', $shippingMode === 'net' ? 'net' : 'gross');
+        }
 
         foreach ($checkbox_fields as $field) {
             if (isset($_POST[$field])) {
@@ -857,6 +903,9 @@ class WC_Billingo_Admin_Controller
                 'wc_billingo_proforma_email',
                 'wc_billingo_proforma_email_woo_btn',
                 'wc_billingo_proforma_email_woo_text',
+                'wc_billingo_advance_email',
+                'wc_billingo_advance_email_woo_btn',
+                'wc_billingo_advance_email_woo_text',
                 'wc_billingo_email',
                 'wc_billingo_email_woo_btn',
                 'wc_billingo_email_woo_text',
@@ -898,7 +947,12 @@ class WC_Billingo_Admin_Controller
 
             foreach ($billingo_payment_settings as $id => $fields) {
                 $id = sanitize_text_field($id);
-                update_option('wc_billingo_payment_method_' . $id, sanitize_text_field($fields['billingo_payment_method']));
+                // A „-- Válassz! --” (nincs hozzárendelés) üres értékként mentődik; ismeretlen érték sosem.
+                $billingoPaymentMethod = sanitize_text_field($fields['billingo_payment_method'] ?? '');
+                if (PaymentMethodEnum::tryFrom($billingoPaymentMethod) === null) {
+                    $billingoPaymentMethod = '';
+                }
+                update_option('wc_billingo_payment_method_' . $id, $billingoPaymentMethod);
                 update_option('wc_billingo_paymentdue_' . $id, (int)$fields['paymentdue']);
                 update_option('wc_billingo_mark_as_paid_' . $id, (int)($fields['mark_as_paid'] ?? 0));
                 update_option('wc_billingo_mark_as_paid2_' . $id, (int)($fields['mark_as_paid2'] ?? 0));

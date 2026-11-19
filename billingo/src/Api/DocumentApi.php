@@ -300,7 +300,7 @@ class DocumentApi extends BillingoApi
      * @param string|null $outputFile
      * @return DocumentApi
      */
-    public function downloadDocumentInPdf(int $id, string $outputFile = null): self
+    public function downloadDocumentInPdf(int $id, ?string $outputFile = null): self
     {
         self::$convertTo = '';
 
@@ -405,7 +405,7 @@ class DocumentApi extends BillingoApi
      * @param bool $isSize58
      * @return DocumentApi
      */
-    public function downloadPosPdf(int $id, string $fileOutput = null, bool $isSize58 = true): self
+    public function downloadPosPdf(int $id, ?string $fileOutput = null, bool $isSize58 = true): self
     {
         self::$convertTo = '';
 

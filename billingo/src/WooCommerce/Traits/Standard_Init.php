@@ -28,6 +28,7 @@ trait Standard_Init
         add_action('wp_ajax_wc_billingo_generate_invoice', [self::class, 'ajax_generateInvoice']);
         add_action('wp_ajax_wc_billingo_storno_invoice', [self::class, 'ajax_stornoInvoice']);
         add_action('wp_ajax_wc_billingo_check_payment_status', [self::class, 'ajax_checkPaymentStatus']);
+        add_action('wp_ajax_wc_billingo_toggle_invoicing', [self::class, 'ajax_toggleInvoicing']);
         add_action('woocommerce_email_before_order_table', [self::class, 'action_woocommerce_email_before_order_table'], 1, 4);
         //add_action('woocommerce_email_before_order_table', [self::class, 'action_woocommerce_email_before_order_table'], 20, 4);
 
@@ -38,6 +39,10 @@ trait Standard_Init
 
         // Initialize product price saving hooks (always needed for orders)
         Billingo_Checkout_Fields::init_product_price_hooks();
+
+        // Pénztár oldali adószám mező (és élő lekérdezés): eddig sosem hívódott meg, ezért a hozzá tartozó
+        // beállítások hatástalanok voltak. Csak a bekapcsolt beállításnál köt hookot.
+        Billingo_Checkout_Fields::init_vat_fields();
 
         // Az eredeti/kedvezményes ár mentése továbbra is megtörténik (a számlázási logika
         // ezt használja), de ne jelenjen meg a rendelés részletes nézetében (admin és
@@ -164,8 +169,21 @@ trait Standard_Init
             return ['success' => false, 'paid' => true, 'message' => __('A rendelés nem található.', 'billingo')];
         }
 
+        $targetSlug = str_replace('wc-', '', $targetStatus);
+
+        // A lekérdezés alatt (vagy a kézi gomb miatt) már lezárt/érvénytelen rendelést nem szabad visszavinni
+        // a célállapotba (pl. egy visszatérített vagy lemondott rendelés ne váljon újra "feldolgozás alattivá"),
+        // és az már a célállapotban lévő rendelést sem módosítjuk újra (felesleges állapotváltás-hookok).
+        if ($order->has_status(['cancelled', 'refunded', 'failed', 'trash'])) {
+            return ['success' => true, 'paid' => true, 'message' => __('A számla kifizetett, de a rendelés jelenlegi állapota miatt az állapota nem módosult.', 'billingo')];
+        }
+
+        if ($order->has_status($targetSlug)) {
+            return ['success' => true, 'paid' => true, 'message' => __('A számla kifizetve, a rendelés már a célállapotban van.', 'billingo')];
+        }
+
         $order->update_status(
-            str_replace('wc-', '', $targetStatus),
+            $targetSlug,
             __('A Billingo szerint a számla kifizetésre került, a rendelés állapota automatikusan frissült.', 'billingo')
         );
 
@@ -220,6 +238,41 @@ trait Standard_Init
     }
 
     /**
+     * A rendelés oldali „Számlázás kikapcsolása ehhez a rendeléshez” kapcsoló AJAX kezelője.
+     */
+    public static function ajax_toggleInvoicing(): void
+    {
+        check_ajax_referer('wc_storno_invoice', 'nonce');
+
+        if (!current_user_can('edit_shop_orders')) {
+            wp_send_json_error(['error' => true, 'messages' => [__('Nincs jogosultságod ehhez a művelethez.', 'billingo')]]);
+            return;
+        }
+
+        $orderId = isset($_POST['order']) ? (int)$_POST['order'] : 0;
+        $order = $orderId > 0 ? wc_get_order($orderId) : false;
+
+        if (!$order instanceof WC_Order) {
+            wp_send_json_error(['error' => true, 'messages' => [__('A rendelés nem található', 'billingo')]]);
+            return;
+        }
+
+        $disabled = wcFlexibleIsTrue(sanitize_text_field(wp_unslash($_POST['disabled'] ?? '')));
+
+        Billingo_Document_Generator::setInvoicingDisabledForOrder($order, $disabled);
+
+        $message = $disabled
+            ? __('A számlázás ki van kapcsolva ehhez a rendeléshez: automatikusan és kézzel sem készül bizonylat.', 'billingo')
+            : __('A számlázás vissza van kapcsolva ehhez a rendeléshez.', 'billingo');
+
+        // A változás nyoma a rendelés megjegyzései között (ki és mikor kapcsolta).
+        $order->add_order_note('Billingo: ' . $message);
+        Billingo_Logger::info('Számlázás kapcsoló módosítva, rendelés #' . $orderId . ': ' . ($disabled ? 'kikapcsolva' : 'bekapcsolva'));
+
+        wp_send_json_success(['error' => false, 'disabled' => $disabled, 'messages' => [$message]]);
+    }
+
+    /**
      * A Billingo által mentett eredeti/kedvezményes ár meta mezőket hozzáadja a
      * WooCommerce "rejtett" rendelési tétel meta listájához, hogy azok az admin és a
      * frontend rendelés-részletes nézetben se jelenjenek meg.
@@ -239,49 +292,50 @@ trait Standard_Init
      */
     public static function on_order_state_change($order_id): void
     {
+        // A WooCommerce csak az Exception-t fogja el az állapotváltás hookoknál: egy Error/TypeError itt a
+        // fizetési webhookot (vagy a pénztár/köszönő oldalt) is leállítaná. A számlázás hibája soha nem
+        // állíthatja meg a rendelés feldolgozását — naplózzuk, és a rendelésen megjegyzésben jelezzük.
+        try {
+            self::process_order_state_change($order_id);
+        } catch (\Throwable $e) {
+            Billingo_Logger::error('on_order_state_change váratlan hiba (rendelés #' . $order_id . '): ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+
+            $order = function_exists('wc_get_order') ? wc_get_order($order_id) : null;
+            if ($order instanceof WC_Order) {
+                $order->add_order_note(__('Billingo: az automatikus számlázás váratlan hibával megszakadt: ', 'billingo') . $e->getMessage());
+            }
+        }
+    }
+
+    private static function process_order_state_change($order_id): void
+    {
         Billingo_Logger::info('on_order_state_change triggered for order ID: ' . $order_id);
         $invoice_generation_data = self::collect_invoice_generation_data($order_id);
 
         // Generate proforma/draft if needed, removed because of the thankyou hook
         //self::should_proforma_generate($order_id);
 
-        if (self::should_generate_advance_invoice_for_pipeline($invoice_generation_data)) {
+        if (Billingo_Document_Generator::isInvoicingDisabledForOrder($invoice_generation_data->getOrder())) {
+            // A rendelés oldalán ki van kapcsolva a számlázás: automatikus bizonylat nem készül.
+            // (A lenti sztornózás ettől függetlenül lefut, a már kiállított számlát nem érinti.)
+            Billingo_Logger::info('Automatikus számlázás kihagyva: ki van kapcsolva ehhez a rendeléshez. Rendelés ID: ' . $order_id);
+        } elseif (self::should_generate_advance_invoice_for_pipeline($invoice_generation_data)) {
             // Az előlegszámla-összekapcsolás kapcsoló be van kapcsolva: a számlázást
             // aktiváló állapot elérésekor a beállított bizonylattípus helyett mindig
             // előlegszámlát állítunk ki, a végszámla csak a fizetés-ellenőrzés
             // célállapotába kerüléskor készül el.
             Billingo_Logger::info('Előlegszámla generálása a számlázási állapot elérésekor. Rendelés ID: ' . $order_id);
-            Billingo_Logger::startDocumentum();
-
-            $document = $invoice_generation_data->getDocumentGenerator()->getAdvance();
-            if (!is_null($document)) {
-                $invoice_generation_data->getController()->createDocument($document);
-            }
-
-            Billingo_Logger::endDocumentum();
+            self::generate_automatically($invoice_generation_data, 'getAdvance');
         } elseif (self::should_generate_final_invoice_from_advance($invoice_generation_data)) {
             // A rendeléshez már van érvényes előlegszámla, és a rendelés éppen most érte
             // el a fizetési módjához beállított, fizetés-ellenőrzés utáni célállapotot:
             // a végszámlát generáljuk le, amely a Billingón automatikusan az előleghez
             // lesz kapcsolva.
             Billingo_Logger::info('Végszámla generálása előlegszámla alapján, állapotváltás miatt. Rendelés ID: ' . $order_id);
-            Billingo_Logger::startDocumentum();
-
-            $document = $invoice_generation_data->getDocumentGenerator()->getInvoice();
-            if (!is_null($document)) {
-                $invoice_generation_data->getController()->createDocument($document);
-            }
-
-            Billingo_Logger::endDocumentum();
+            self::generate_automatically($invoice_generation_data, 'getInvoice');
         } elseif (self::should_document_generate($invoice_generation_data)) {
-            Billingo_Logger::startDocumentum();
-
-            $document = $invoice_generation_data->getDocumentGenerator()->get();
-            if (!is_null($document)) {
-                $invoice_generation_data->getController()->createDocument($document);
-            }
-
-            Billingo_Logger::endDocumentum();
+            self::generate_automatically($invoice_generation_data, 'get');
         }
 
         if (self::should_cancel_document($invoice_generation_data)) {
@@ -293,11 +347,52 @@ trait Standard_Init
                 ->first();
 
             if (!is_null($billingo_document)) {
-                $invoice_generation_data->getController()->cancelDocument($billingo_document['billingo_id']);
+                $cancelled = $invoice_generation_data->getController()->cancelDocument($billingo_document['billingo_id']);
+
+                if (!$cancelled) {
+                    self::note_billingo_failure(
+                        $invoice_generation_data->getOrder(),
+                        __('az automatikus sztornózás nem sikerült', 'billingo'),
+                        $invoice_generation_data->getController()->getLastError()
+                    );
+                }
             }
 
             Billingo_Logger::endDocumentum();
         }
+    }
+
+    /**
+     * Egy automatikus bizonylatkészítés közös menete: a generátor adott metódusa, majd a Billingo-beli
+     * létrehozás. Ha a bizonylat nem készül el, és az nem szándékos beállítás miatt van (kikapcsolt számlázás),
+     * az okot megjegyzésben rögzítjük a rendelésen — korábban csak a naplófájlba került, a boltos pedig
+     * nem látta, hogy a számla elmaradt.
+     */
+    private static function generate_automatically(Invoice_Generation_Container $invoice_generation_data, string $generatorMethod): void
+    {
+        Billingo_Logger::startDocumentum();
+
+        $generator = $invoice_generation_data->getDocumentGenerator();
+        $document = $generator->$generatorMethod();
+
+        if (is_null($document)) {
+            if (!$generator->wasSkippedByDesign()) {
+                self::note_billingo_failure($invoice_generation_data->getOrder(), __('a bizonylat nem készült el', 'billingo'), $generator->getLastError());
+            }
+        } else {
+            $controller = $invoice_generation_data->getController();
+
+            if (is_null($controller->createDocument($document))) {
+                self::note_billingo_failure($invoice_generation_data->getOrder(), __('a bizonylat létrehozása nem sikerült', 'billingo'), $controller->getLastError());
+            }
+        }
+
+        Billingo_Logger::endDocumentum();
+    }
+
+    private static function note_billingo_failure(WC_Order $order, string $what, ?string $reason): void
+    {
+        $order->add_order_note('Billingo: ' . $what . ($reason ? ' – ' . $reason : '') . '.');
     }
 
     /**
@@ -307,8 +402,46 @@ trait Standard_Init
      */
     public static function should_proforma_generate($order_id): void
     {
-        $invoice_generation_data = self::collect_invoice_generation_data($order_id);
+        // A woocommerce_thankyou hookon fut: egy itt kiszabaduló Error a vevő köszönő oldalát döntené el.
+        try {
+            self::process_proforma_generation($order_id);
+        } catch (\Throwable $e) {
+            Billingo_Logger::error('should_proforma_generate váratlan hiba (rendelés #' . $order_id . '): ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+        }
+    }
+
+    private static function process_proforma_generation($order_id): void
+    {
         $order = wc_get_order($order_id);
+
+        if (!($order instanceof WC_Order)) {
+            return;
+        }
+
+        // Ha a rendeléshez már van (nem sztornózott) számla vagy előlegszámla, díjbekérő/piszkozat már nem
+        // készülhet: a köszönő oldal későbbi megnyitása korábban a kiállított számla UTÁN is díjbekérőt hozott
+        // létre, amit a rendelés oldal aztán "legutóbbi bizonylatként" mutatott, elrejtve a sztornó gombot.
+        $issued = (new Billingo_Repositroy())
+            ->where('order_id', (string)$order_id)
+            ->get() ?? [];
+
+        foreach ($issued as $row) {
+            if (in_array($row['type'] ?? null, [TypeEnum::INVOICE->value, TypeEnum::ADVANCE->value], true)) {
+                Billingo_Logger::info('Díjbekérő/piszkozat kihagyva: a rendeléshez már van számla vagy előlegszámla. Rendelés ID: ' . $order_id);
+
+                return;
+            }
+        }
+
+        // A rendelés oldalán kikapcsolt számlázásnál díjbekérő/piszkozat sem készül.
+        if (Billingo_Document_Generator::isInvoicingDisabledForOrder($order)) {
+            Billingo_Logger::info('Díjbekérő/piszkozat kihagyva: ki van kapcsolva a számlázás ehhez a rendeléshez. Rendelés ID: ' . $order_id);
+
+            return;
+        }
+
+        $invoice_generation_data = self::collect_invoice_generation_data($order_id);
 
         $payment_method_proforma_enabled = false;
 
@@ -446,14 +579,19 @@ trait Standard_Init
             return;
         }
 
-        $billingo_id = !empty($manual_billingo_id) ? $manual_billingo_id : $row_in_db['billingo_id'];
+        // A kézzel megadott ID csak a fenti, helyi sor nélküli egyeztetéshez való, és ott nem sztornóz.
+        // Ha van helyi sor, mindig annak a bizonylatát sztornózzuk: a beküldött ID-val korábban bármely
+        // (akár más rendeléshez tartozó) Billingo-bizonylat sztornózható volt.
+        $billingo_id = $row_in_db['billingo_id'];
         $response = ['error' => false];
 
         //handles the email sending for the storno because it is not a document genaration, just a cancellation request to the server
         if(in_array(get_option('wc_billingo_storno_email'), ['both', 'billingo'])) {
-            $cancellationData = [
-                'cancellation_recipients' => $order->get_billing_email()
-            ];
+            // Cím nélküli rendelésnél (pl. kézi rendelés) üres címzettet nem küldünk a Billingónak, mint a
+            // Billingo_Controller teszi: egy üres cancellation_recipients elutasíthatja a sztornót.
+            $cancellationData = $order->get_billing_email()
+                ? ['cancellation_recipients' => $order->get_billing_email()]
+                : [];
 
             Billingo_Logger::info('Cancelling invoice with email notification to: ' . $order->get_billing_email());
 
@@ -507,7 +645,18 @@ trait Standard_Init
             wp_send_json_error(['error' => true, 'messages' => __('A rendelés ID nincs megadva', 'billingo')]);
         } else {
             $orderId = (int)$_POST['order'];
-            update_post_meta($orderId, '_is_manual', 'yes');
+            $manualOrder = wc_get_order($orderId);
+
+            // Érvénytelen azonosítóra (törölt rendelés, termék/oldal ID, visszatérítés) nem írunk meta adatot,
+            // és a generátor sem indulhat el: hamis rendelésen annak konstruktora fatal errort dobna.
+            if (!($manualOrder instanceof WC_Order)) {
+                wp_send_json_error(['error' => true, 'messages' => [__('A rendelés nem található', 'billingo')]]);
+                return;
+            }
+
+            // Rendelés-meta API (HPOS-kompatibilis), nem közvetlen post meta.
+            $manualOrder->update_meta_data('_is_manual', 'yes');
+            $manualOrder->save();
         }
 
         Billingo_Logger::info('ajax_generateInvoice raw POST data for wc_billingo_invoice_type: ' . ($_POST['wc_billingo_invoice_type'] ?? 'NOT SET'));
@@ -523,16 +672,16 @@ trait Standard_Init
 
         $manualIncome = [];
         if (isset($_POST['wc_billingo_invoice_type']) && !empty($_POST['wc_billingo_invoice_type'])) {
-            $manualIncome['invoice_type'] = sanitize_text_field($_POST['wc_billingo_invoice_type']);
+            $manualIncome['invoice_type'] = sanitize_text_field(wp_unslash($_POST['wc_billingo_invoice_type']));
         }
         if (isset($_POST['wc_billingo_invoice_note'])) {
-            $manualIncome['note'] = sanitize_text_field($_POST['wc_billingo_invoice_note']);
+            $manualIncome['note'] = sanitize_text_field(wp_unslash($_POST['wc_billingo_invoice_note']));
         }
         if (isset($_POST['wc_billingo_invoice_deadline']) && !empty($_POST['wc_billingo_invoice_deadline'])) {
             $manualIncome['deadline'] = (int)$_POST['wc_billingo_invoice_deadline'];
         }
         if (isset($_POST['wc_billingo_invoice_completed']) && !empty($_POST['wc_billingo_invoice_completed'])) {
-            $manualIncome['completed'] = sanitize_text_field($_POST['wc_billingo_invoice_completed']);
+            $manualIncome['completed'] = sanitize_text_field(wp_unslash($_POST['wc_billingo_invoice_completed']));
         }
 
         $generator = new Billingo_Document_Generator($orderId, $manualIncome);
@@ -705,6 +854,24 @@ trait Standard_Init
             $text = get_option('wc_billingo_proforma_email_woo_text',
                 __('Díjbekérője elkészült, melyet az alábbi linken tud megtekinteni.', 'billingo'));
             $btn_text = get_option('wc_billingo_proforma_email_woo_btn', __('Díjbekérő megtekintése', 'billingo'));
+        }
+
+        // advance: az előlegszámla linkje a függőben lévő / feldolgozás alatti rendelés e-mailjében (az előlegszámla
+        // a számlázási állapot elérésekor készül, ezért itt nincs külön legenerálás)
+        if (in_array(get_option('wc_billingo_advance_email'), ['attach', 'both'])
+            && in_array($email_id, ['customer_processing_order', 'customer_on_hold_order'])) {
+            $advance_document = $repository
+                ->where('order_id', $order_id)
+                ->where('type', TypeEnum::ADVANCE->value)
+                ->first();
+
+            if ($advance_document) {
+                Billingo_Logger::info('advance email through woocommerce triggered');
+                $pdf_link = $advance_document['link'];
+                $text = get_option('wc_billingo_advance_email_woo_text',
+                    __('Előlegszámlája elkészült, melyet az alábbi linken tud megtekinteni.', 'billingo'));
+                $btn_text = get_option('wc_billingo_advance_email_woo_btn', __('Előlegszámla megtekintése', 'billingo'));
+            }
         }
 
         if (!$pdf_link) {

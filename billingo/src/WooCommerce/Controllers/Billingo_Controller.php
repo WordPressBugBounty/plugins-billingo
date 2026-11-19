@@ -62,7 +62,11 @@ class Billingo_Controller
             ->where('order_id', $this->orderId)
             ->first();
 
-            $canUseProforma = !$this->blockProforma && 
+            // Díjbekérőből CSAK számlát lehet átalakítani: ha piszkozatot, előlegszámlát vagy újabb díjbekérőt
+            // kértek egy olyan rendelésre, amelyen már van díjbekérő, az nem válhat észrevétlenül éles számlává
+            // (az előlegszámla-folyamatban az előlegszámla így soha nem készült volna el).
+            $canUseProforma = $document->type === TypeEnum::INVOICE->value &&
+            !$this->blockProforma &&
             $hasProforma !== null && 
             isset($hasProforma['billingo_id']) && 
             !empty($hasProforma['billingo_id']);

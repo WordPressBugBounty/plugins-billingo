@@ -11,6 +11,10 @@ class Billingo_Repositroy
 {
     const TABLENAME_DOCUMENTS = 'billingo_documents';
 
+    /** A tábla-séma verziója: ennek változásakor (vagy új webhelyen) az install() újra lefut. */
+    const SCHEMA_VERSION = '2';
+    const SCHEMA_VERSION_OPTION = 'wc_billingo_db_version';
+
     /** Engedélyezett oszlopok (whitelist) */
     private const ALLOWED_COLUMNS = [
         'id',
@@ -71,7 +75,7 @@ class Billingo_Repositroy
     /**
      * Rekord(ok) lekérdezése
      */
-    public function get(int $index = null): ?array
+    public function get(?int $index = null): ?array
     {
         // Alap SELECT
         $sql = "SELECT * FROM `{$this->tableName}`";
@@ -131,7 +135,7 @@ class Billingo_Repositroy
         $id = (int)$this->database->insert_id;
         Billingo_Logger::info("Database save operation: SUCCESSFUL, Record ID: {$id}");
 
-        return $this->where('id', (string)$id)->first();
+        return $this->withCanceled()->where('id', (string)$id)->first();
     }
 
     public function createFromDocument(int $orderId, Document $document): ?array
@@ -159,7 +163,10 @@ class Billingo_Repositroy
         }
 
         Billingo_Logger::info("Database update operation: SUCCESSFUL, Record ID: {$id}");
-        return $this->where('id', (string)$id)->first();
+
+        // withCanceled(): a frissítés után a sort a sztornózottak szűrése nélkül kell visszaolvasni, különben
+        // egy sikeres "canceled_by" beállítás után null jönne vissza, ami a hibától megkülönböztethetetlen.
+        return $this->withCanceled()->where('id', (string)$id)->first();
     }
 
     public function updateFromDocument(int $id, int $orderId, Document $document): ?array
@@ -208,7 +215,7 @@ class Billingo_Repositroy
             'billingo_number' => (string)$document->invoice_number,
             'link'            => (string)(new Billingo_Controller($orderId))->getLink($document->id),
             'type'            => (string)$document->type,
-            'api_key'         => (string)get_option('wc_billingo_api_key', ''),
+            'api_key'         => self::apiKeyFingerprint((string)get_option('wc_billingo_api_key', '')),
             // 'created_at'   => nem kell, default CURRENT_TIMESTAMP
         ];
     }
@@ -288,6 +295,49 @@ class Billingo_Repositroy
         ) {$charset_collate};";
 
         dbDelta($sql);
+    }
+
+    /**
+     * Az API-kulcs nem visszafejthető ujjlenyomata (SHA-256 első 16 hex karaktere). A dokumentumsorokba korábban
+     * a teljes kulcs került, így egy adatbázis-mentésből vagy egy másik bővítmény SQL-hibáján át kiolvasható volt;
+     * az oszlopot semmilyen lekérdezés nem olvassa, csak a fiók azonosítására szolgál.
+     */
+    public static function apiKeyFingerprint(string $apiKey): string
+    {
+        return $apiKey === '' ? '' : substr(hash('sha256', $apiKey), 0, 16);
+    }
+
+    /**
+     * A sémát a mentett verzió alapján, a webhelyen az első betöltéskor hozza rendbe. Az aktiváláskor futó install()
+     * hálózati aktiválásnál csak a főoldalra fut le, a frissítés-hook (upgrader_process_complete) pedig még a RÉGI
+     * verzió kódját futtatja, ezért az új oszlopokat nem hozná létre — ez mindkettőt kiváltja, minden webhelyen.
+     */
+    public static function maybeUpgrade(): void
+    {
+        if (get_option(self::SCHEMA_VERSION_OPTION) === self::SCHEMA_VERSION) {
+            return;
+        }
+
+        global $wpdb;
+
+        self::install();
+        self::scrubStoredApiKeys($wpdb);
+
+        update_option(self::SCHEMA_VERSION_OPTION, self::SCHEMA_VERSION);
+    }
+
+    /**
+     * A korábbi verziók által tárolt, teljes API-kulcsokat az ujjlenyomatukra cseréli (SHA2 = a PHP hash('sha256')
+     * kisbetűs hex alakja, így a két érték megegyezik). Az ujjlenyomatot (16 hex karakter) érintetlenül hagyja.
+     */
+    public static function scrubStoredApiKeys($database): void
+    {
+        $table = $database->prefix . self::TABLENAME_DOCUMENTS;
+
+        $database->query(
+            "UPDATE {$table} SET api_key = LEFT(SHA2(api_key, 256), 16)"
+            . " WHERE api_key IS NOT NULL AND api_key <> '' AND api_key NOT REGEXP '^[0-9a-f]{16}$'"
+        );
     }
 
     /**

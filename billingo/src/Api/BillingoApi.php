@@ -18,15 +18,33 @@ class BillingoApi
     {
         $this->apiContext = new ApiContext();
         $this->connector = BillingoConnector::getInstance();
+
+        // A $convertTo statikus (osztályonként közös), ezért egy korábbi, a send() előtt megszakadt hívás
+        // (pl. validációs kivétel) az értékét itt felejthette volna: új példány mindig tiszta lappal indul.
+        $this->resetConvertTo();
     }
 
-    protected function send(string $outputFile = null): self
+    protected function send(?string $outputFile = null): self
     {
-        $this->response = $this->connector->send($this->apiContext, $outputFile);
+        try {
+            $this->response = $this->connector->send($this->apiContext, $outputFile);
 
-        $this->createClassFromResponse();
+            $this->createClassFromResponse();
+        } finally {
+            // Akkor is vissza kell állítani, ha a küldés kivételt dob, vagy a válasz üres/hibás volt
+            // (a konvertálás korai visszatérése): különben a következő hívás válasza rossz osztályba
+            // (pl. üres SendDocument) konvertálódna.
+            $this->resetConvertTo();
+        }
 
         return $this;
+    }
+
+    private function resetConvertTo(): void
+    {
+        if (property_exists(static::class, 'convertTo') && defined(static::class . '::DEFAULT_CONVERT_CLASS')) {
+            static::$convertTo = static::DEFAULT_CONVERT_CLASS;
+        }
     }
 
     private function createClassFromResponse(): void
@@ -41,8 +59,6 @@ class BillingoApi
         $converted = $this->convertToObject($this->response->getData());
 
         $this->response->setData($converted);
-
-        static::$convertTo = static::DEFAULT_CONVERT_CLASS;
     }
 
     protected function convertToObject(array|BillingoCollection $data): BillingoCollection|BillingoModel

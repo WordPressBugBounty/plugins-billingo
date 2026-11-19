@@ -43,6 +43,10 @@
                 </div>
             {% endif %}
         {% else %}
+            <p id="wc_billingo_disabled_notice" style="{% if not invoicingDisabled %}display:none; {% endif %}color: #b32d2e; font-weight: 600;">
+                {{ 'A számlázás ki van kapcsolva ehhez a rendeléshez.' | esc_html_translate }}
+            </p>
+            <div id="wc_billingo_generate_area" style="{% if invoicingDisabled %}display:none;{% endif %}">
             <div>
                 <a href="#"
                    id="wc_billingo_generate"
@@ -101,7 +105,22 @@
                     </select>
                 </div>
             </div>
+            </div>
         {% endif %}
+
+        <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid #ddd; text-align: left;">
+            <label for="wc_billingo_toggle_invoicing" style="font-weight: 600;">
+                <input type="checkbox"
+                       id="wc_billingo_toggle_invoicing"
+                       data-order="{{ orderId }}"
+                       data-nonce="{{ nonce | esc_attr }}"
+                       {% if invoicingDisabled %}checked="checked"{% endif %} />
+                {{ 'Számlázás kikapcsolása ehhez a rendeléshez' | esc_html_translate }}
+            </label>
+            <p style="font-size: 11px; color: #666; margin: 4px 0 0;">
+                {{ 'Bekapcsolva ehhez a rendeléshez sem automatikusan, sem kézzel nem készül bizonylat. A már kiállított számla sztornózható marad.' | esc_html_translate }}
+            </p>
+        </div>
 
         {# Display all previous documents in collapsible section #}
         {% if allDocuments is not empty %}

@@ -122,7 +122,7 @@ if (!function_exists('billingoCollection')) {
 if (!function_exists('wcFlexibleIsTrue')) {
     function wcFlexibleIsTrue($value): bool
     {
-        return in_array(strtolower($value), ['1', 'yes', 'true', 'on'], true);
+        return is_scalar($value) && in_array(strtolower((string)$value), ['1', 'yes', 'true', 'on'], true);
     }
 }
 

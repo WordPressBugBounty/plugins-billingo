@@ -8,6 +8,13 @@ use App\Billingo\Enums\CheckTaxNumberMessageEnum;
 
 class Billingo_Checkout_Fields
 {
+    public const AJAX_ACTION = 'wc_billingo_lookup_vat';
+    public const NONCE_ACTION = 'wc_billingo_vat_lookup';
+
+    /** Egy IP-ről ennyi lekérdezés engedett LOOKUP_WINDOW másodpercen belül. */
+    private const LOOKUP_LIMIT = 10;
+    private const LOOKUP_WINDOW = 600;
+
     private static bool $vat_fields_initialized = false;
     private static bool $price_hooks_initialized = false;
 
@@ -56,9 +63,17 @@ class Billingo_Checkout_Fields
         if ($is_vat_form_enabled) {
             add_filter('woocommerce_checkout_fields', [self::class, 'add_vat_number_field']);
             add_action('woocommerce_checkout_process', [self::class, 'validate_vat_number_field']);
-            add_action('woocommerce_checkout_update_order_meta', [self::class, 'save_vat_number_field']);
+            // A rendelés objektumára menti az adatot (HPOS-kompatibilis, külön update_post_meta nélkül).
+            add_action('woocommerce_checkout_create_order', [self::class, 'save_vat_number_to_order']);
             add_action('woocommerce_admin_order_data_after_billing_address', [self::class, 'display_vat_number_in_admin']);
             add_action('woocommerce_order_details_after_customer_details', [self::class, 'display_vat_number_in_order_details']);
+
+            // Élő adószám-lekérdezés / cégadat-kitöltés a pénztár oldalon
+            add_action('wp_enqueue_scripts', [self::class, 'enqueue_checkout_script']);
+            add_action('wp_ajax_' . self::AJAX_ACTION, [self::class, 'ajax_lookup_vat_number']);
+            // A vásárlók többsége vendég: a végpont szándékosan elérhető kijelentkezett látogatónak is,
+            // ezért nonce-szal, korlátozott gyakorisággal és szűkített válasszal (csak cégnév és cím) működik.
+            add_action('wp_ajax_nopriv_' . self::AJAX_ACTION, [self::class, 'ajax_lookup_vat_number']);
 
             if (class_exists('App\Billingo\WooCommerce\Service\Billingo_Logger')) {
                 Billingo_Logger::info('VAT number field hooks added');
@@ -155,9 +170,179 @@ class Billingo_Checkout_Fields
                 wc_add_notice(__('A megadott adószám a NAV nyilvántartása szerint nem érvényes. Kérjük, ellenőrizze az adószámot.', 'billingo'), 'error');
             }
             // EXTERNAL_NAV_SERVICE_UNREACHABLE / NO_ONLINE_SZAMLA_SETTINGS esetén fail-open: nem blokkoljuk a vásárlást.
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            // \Throwable: egy hibás API-válasz TypeError-t (\Error) is okozhat, ami fail-open helyett fatal lenne.
             Billingo_Logger::error('Adószám NAV-ellenőrzés kivétel: ' . $e->getMessage() . ' — a checkout nem lett blokkolva.');
         }
+    }
+
+    /**
+     * A pénztár oldali adószám-lekérdezés JS-e és adatai (csak ha az élő ellenőrzés vagy a kitöltés be van kapcsolva).
+     */
+    public static function enqueue_checkout_script(): void
+    {
+        if (!function_exists('is_checkout') || !is_checkout() || (function_exists('is_wc_endpoint_url') && is_wc_endpoint_url('order-received'))) {
+            return;
+        }
+
+        $liveCheck = wcFlexibleIsTrue(get_option('wc_billingo_vat_number_live_check'));
+        $autofill = wcFlexibleIsTrue(get_option('wc_billingo_vat_number_autofill'));
+
+        if (!$liveCheck && !$autofill) {
+            return;
+        }
+
+        $path = dirname(__DIR__) . '/assets/js/checkout-vat.js';
+
+        wp_enqueue_script(
+            'billingo_checkout_vat',
+            plugins_url('/../assets/js/checkout-vat.js', __FILE__),
+            ['jquery'],
+            is_file($path) ? (string)filemtime($path) : null,
+            true
+        );
+
+        wp_localize_script('billingo_checkout_vat', 'wc_billingo_vat_lookup', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'action' => self::AJAX_ACTION,
+            'nonce' => wp_create_nonce(self::NONCE_ACTION),
+            'autofill' => $autofill,
+            'checking' => __('Adószám ellenőrzése...', 'billingo'),
+        ]);
+    }
+
+    /**
+     * AJAX: adószám ellenőrzése (NAV) és a már ismert partner adatainak lekérése a Billingóból.
+     */
+    public static function ajax_lookup_vat_number(): void
+    {
+        check_ajax_referer(self::NONCE_ACTION, 'nonce');
+
+        if (!wcFlexibleIsTrue(get_option('wc_billingo_vat_number_form'))) {
+            wp_send_json_error(['message' => ''], 403);
+        }
+
+        if (self::is_lookup_rate_limited()) {
+            wp_send_json_error(['message' => __('Túl sok lekérdezés történt, kérjük, próbálja újra néhány perc múlva.', 'billingo')], 429);
+        }
+
+        $input = isset($_POST['vat_number']) ? sanitize_text_field(wp_unslash($_POST['vat_number'])) : '';
+
+        wp_send_json_success(self::lookup_vat_number($input));
+    }
+
+    /**
+     * Az adószám lekérdezésének tényleges logikája.
+     *
+     * A Billingo "check-tax-number" végpontja csak az érvényességet adja vissza (NAV-ellenőrzés), cégadatot nem.
+     * A kitöltéshez ezért a bolt saját Billingo-partnerei között keresünk az adószámra: ha már számláztunk ennek a
+     * cégnek, a neve és a címe kitölthető. A válasz szándékosan csak ezt a két adatot tartalmazza (e-mail,
+     * telefon, megjegyzés nem), mert a végpont vendégeknek is elérhető.
+     *
+     * @param object|null $client BillingoClient (tesztben cserélhető)
+     * @return array{status: string, message: string, company: ?array<string, string>}
+     */
+    public static function lookup_vat_number(string $input, ?object $client = null): array
+    {
+        $result = ['status' => 'unknown', 'message' => '', 'company' => null];
+
+        $normalized = self::normalize_hungarian_vat_number($input);
+
+        if ($normalized === null) {
+            return ['status' => 'invalid_format', 'message' => __('Az adószám formátuma nem megfelelő.', 'billingo'), 'company' => null];
+        }
+
+        try {
+            $client ??= new BillingoClient(get_option('wc_billingo_api_key', ''));
+
+            if (wcFlexibleIsTrue(get_option('wc_billingo_vat_number_live_check'))) {
+                $response = $client->util()->checkTaxNumber($normalized)->getResponse();
+
+                if ($response->getStatusCode() === 200) {
+                    $data = $response->getData();
+                    $nav = $data instanceof TaxNumber ? $data->result : null;
+
+                    if ($nav === CheckTaxNumberMessageEnum::VALIDATION_OK->value) {
+                        $result['status'] = 'valid';
+                        $result['message'] = __('Az adószám érvényes.', 'billingo');
+                    } elseif (in_array($nav, [
+                        CheckTaxNumberMessageEnum::INVALID_TAX_NUMBER->value,
+                        CheckTaxNumberMessageEnum::NON_EXIST_TAX_NUMBER->value,
+                    ], true)) {
+                        return [
+                            'status' => 'invalid',
+                            'message' => __('A megadott adószám a NAV nyilvántartása szerint nem érvényes.', 'billingo'),
+                            'company' => null,
+                        ];
+                    }
+                }
+            }
+
+            if (wcFlexibleIsTrue(get_option('wc_billingo_vat_number_autofill'))) {
+                $result['company'] = self::find_known_company($client, $normalized);
+            }
+        } catch (\Throwable $e) {
+            // Fail-open: egy Billingo/NAV hiba nem akadályozhatja a vásárlást, a mezők kézzel kitölthetők.
+            Billingo_Logger::error('Adószám-lekérdezés kivétel: ' . $e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * A bolt Billingo-partnerei közül a megadott adószámú partner neve és címe (vagy null).
+     * A találatot az adószám számjegyeinek egyezésével ellenőrizzük, mert a keresés szöveges.
+     *
+     * @return array<string, string>|null
+     */
+    private static function find_known_company(object $client, string $normalizedVatNumber): ?array
+    {
+        $digits = preg_replace('/\D/', '', $normalizedVatNumber);
+        $company = null;
+
+        $client->partner()->query()->whereQuery($normalizedVatNumber)->getData()->each(
+            function ($partner) use ($digits, &$company) {
+                if ($company !== null) {
+                    return;
+                }
+
+                $data = $partner->toArray();
+
+                if (preg_replace('/\D/', '', (string)($data['taxcode'] ?? '')) !== $digits || empty($data['name'])) {
+                    return;
+                }
+
+                $address = (array)($data['address'] ?? []);
+
+                $company = [
+                    'name' => sanitize_text_field((string)$data['name']),
+                    'country' => sanitize_text_field((string)($address['country_code'] ?? '')),
+                    'postcode' => sanitize_text_field((string)($address['post_code'] ?? '')),
+                    'city' => sanitize_text_field((string)($address['city'] ?? '')),
+                    'address' => sanitize_text_field((string)($address['address'] ?? '')),
+                ];
+            }
+        );
+
+        return $company;
+    }
+
+    /**
+     * Egy IP-címről érkező lekérdezések számát korlátozza (a végpont vendégeknek is elérhető).
+     */
+    private static function is_lookup_rate_limited(): bool
+    {
+        $ip = class_exists('WC_Geolocation') ? \WC_Geolocation::get_ip_address() : ($_SERVER['REMOTE_ADDR'] ?? '');
+        $key = 'wc_billingo_vl_' . md5((string)$ip);
+        $count = (int)get_transient($key);
+
+        if ($count >= self::LOOKUP_LIMIT) {
+            return true;
+        }
+
+        set_transient($key, $count + 1, self::LOOKUP_WINDOW);
+
+        return false;
     }
 
     /**
@@ -165,7 +350,7 @@ class Billingo_Checkout_Fields
      * által elvárt "NNNNNNNN-N-NN" formátumra hozza. Null-t ad vissza, ha a bemenet nem
      * alakítható érvényes formátumra.
      */
-    private static function normalize_hungarian_vat_number(string $vat_number): ?string
+    public static function normalize_hungarian_vat_number(string $vat_number): ?string
     {
         $digits = preg_replace('/[^0-9]/', '', $vat_number);
 
@@ -181,13 +366,18 @@ class Billingo_Checkout_Fields
     /**
      * Menti az adószámot a rendelés meta adataiba
      */
-    public static function save_vat_number_field(int $order_id): void
+    public static function save_vat_number_to_order($order): void
     {
-        if (isset($_POST['billing_vat_number']) && !empty($_POST['billing_vat_number'])) {
-            $vat_number = sanitize_text_field($_POST['billing_vat_number']);
-            update_post_meta($order_id, 'adoszam', $vat_number);
-            update_post_meta($order_id, '_billing_vat_number', $vat_number);
+        if (!is_object($order) || empty($_POST['billing_vat_number'])) {
+            return;
         }
+
+        $vat_number = sanitize_text_field(wp_unslash($_POST['billing_vat_number']));
+        // Magyar adószámot egységes NNNNNNNN-N-NN alakban mentünk (a partner adószámaként ez megy a Billingóba).
+        $vat_number = self::normalize_hungarian_vat_number($vat_number) ?? $vat_number;
+
+        $order->update_meta_data('adoszam', $vat_number);
+        $order->update_meta_data('_billing_vat_number', $vat_number);
     }
 
     /**
@@ -227,25 +417,34 @@ class Billingo_Checkout_Fields
             return '';
         }
 
-        $order_id = $order->get_id();
-
+        // Rendelés-meta API (nem get_post_meta): HPOS alatt a rendelés nem bejegyzés.
         // Először az "adoszam" meta mezőből próbáljuk
-        $vat_number = get_post_meta($order_id, 'adoszam', true);
+        $vat_number = $order->get_meta('adoszam', true);
 
         // Ha nincs, akkor a _billing_vat_number-ből
         if (empty($vat_number)) {
-            $vat_number = get_post_meta($order_id, '_billing_vat_number', true);
+            $vat_number = $order->get_meta('_billing_vat_number', true);
         }
 
         // Ha van custom meta mező beállítva
-        $custom_field = get_option('wc_billingo_vat_number_form_custom', '');
-        if (!empty($custom_field) && empty($vat_number)) {
-            $vat_number = get_post_meta($order_id, $custom_field, true);
+        // (a kulcs aláhúzással és anélkül is mentődhet, mint a számlakészítésnél: TS-4917)
+        $custom_field = trim((string)get_option('wc_billingo_vat_number_form_custom', ''));
+        if ($custom_field !== '' && empty($vat_number)) {
+            $bare_key = ltrim($custom_field, '_');
+
+            foreach (array_unique([$custom_field, '_' . $bare_key, $bare_key]) as $candidate_key) {
+                $candidate = $order->get_meta($candidate_key, true);
+
+                if (!empty($candidate) && is_scalar($candidate)) {
+                    $vat_number = $candidate;
+                    break;
+                }
+            }
         }
 
         // HuCommerce kompatibilitás
         if (empty($vat_number) && self::is_hucommerce_active()) {
-            $vat_number = get_post_meta($order_id, '_billing_tax_number', true);
+            $vat_number = $order->get_meta('_billing_tax_number', true);
         }
 
         return !empty($vat_number) ? sanitize_text_field($vat_number) : '';
@@ -271,8 +470,17 @@ class Billingo_Checkout_Fields
 
         Billingo_Logger::info('save_product_original_prices');
 
-        // Ellenőrizzük, hogy már mentettük-e ezt a rendelést
-        $already_saved = get_post_meta($order_id, '_billingo_original_prices_saved', true);
+        $order = wc_get_order($order_id);
+        if (!$order) {
+            Billingo_Logger::info('Order not found for ID: ' . $order_id);
+            return;
+        }
+
+        // Ellenőrizzük, hogy már mentettük-e ezt a rendelést. Rendelés-meta API (HPOS-kompatibilis); a korábbi
+        // verziók a jelzőt bejegyzés-metába (post meta) írták, ezért azt is megnézzük: így a már feldolgozott
+        // rendeléseknél nem mentődnek újra az árak a termék azóta megváltozott áraival.
+        $already_saved = $order->get_meta('_billingo_original_prices_saved', true)
+            ?: get_post_meta($order_id, '_billingo_original_prices_saved', true);
         //ha már el van mentve akkor nem mentünk rá újra, nehogy árban eltérés legyen a termék árának változása miatt
         if ($already_saved) {
 
@@ -280,12 +488,6 @@ class Billingo_Checkout_Fields
         }
 
         Billingo_Logger::info('save_product_original_prices called for order ID: ' . $order_id);
-
-        $order = wc_get_order($order_id);
-        if (!$order) {
-            Billingo_Logger::info('Order not found for ID: ' . $order_id);
-            return;
-        }
 
         $items = $order->get_items();
 
@@ -312,6 +514,7 @@ class Billingo_Checkout_Fields
         }
 
         // Jelöljük, hogy már mentettük ezt a rendelést
-        update_post_meta($order_id, '_billingo_original_prices_saved', 1);
+        $order->update_meta_data('_billingo_original_prices_saved', 1);
+        $order->save_meta_data();
     }
 } 

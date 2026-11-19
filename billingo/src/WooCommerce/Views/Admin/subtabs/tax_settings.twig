@@ -643,23 +643,65 @@
                             </tr>
                             <tr valign="top">
                                 <th scope="row" class="billingo-tax-settings-field-container">
-                                    <label class="billingo-field-name-right-column" for="wc_billingo_tax_shipping_pirce_type_is_net">{{
-                                        'Szállítás díja nettóban van megadva'|esc_html_translate }}</label>
-                                        <p class="billingo-field-description-italic-right-column">{{ 'Ha a webáruházban a szállítási költségeket nettóban adtad meg, csak akkor kapcsold be. Minden szállítási költséged egységesen legyen brutto vagy netto minden esetben.'|esc_html_translate }}</p>
+                                    <label class="billingo-field-name-right-column" for="wc_billingo_shipping_price_mode">{{ 'Szállítási díj a számlán'|esc_html_translate }}</label>
+                                    <p class="billingo-field-description-italic-right-column">{{ 'A WooCommerce a szállítás összegét mindig adó nélkül tárolja, az áfát külön rögzíti. Bruttó módban a számlára a vevő által fizetett összeg (összeg + áfa) kerül, nettó módban az adó nélküli összeg, amihez a Billingo az áfát hozzászámolja.'|esc_html_translate }}</p>
+                                </th>
+                                <td class="forminp forminp-select">
+                                    <select class="billingo-tax-settings-select" name="wc_billingo_shipping_price_mode"
+                                        id="wc_billingo_shipping_price_mode" style="width:350px;">
+                                        <option value="gross" {% if shipping_price_mode == 'gross' %}selected="selected" {% endif %}>{{ 'Bruttó (a vevő által fizetett összeg)'|esc_html_translate }}</option>
+                                        <option value="net" {% if shipping_price_mode == 'net' %}selected="selected" {% endif %}>{{ 'Nettó (adó nélküli összeg + áfa)'|esc_html_translate }}</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row" class="billingo-tax-settings-field-container">
+                                    <label class="billingo-field-name-right-column" for="wc_billingo_fee_vat_follow_order">{{ 'Tranzakciós díjak a rendelés termékeinek ÁFA kulcsát kapják'|esc_html_translate }}</label>
+                                    <p class="billingo-field-description-italic-right-column" style="height: auto;">{{ 'Bekapcsolva a tranzakciós díjak (pl. utánvét díj, MPL költség) ugyanazt az ÁFA kulcsot kapják, mint a rendelés termékei; több kulcs esetén a legmagasabbat. A fizetendő összeg nem változik. Erősebb, mint a „Tranzakciós díj (fee) ÁFA kulcsa” mezőben választott kulcs.'|esc_html_translate }}</p>
                                 </th>
                                 <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
                                     <fieldset>
-                                        <label for="wc_billingo_tax_shipping_pirce_type_is_net"
-                                            class="relative inline-flex items-center cursor-pointer">
-                                            <input name="wc_billingo_tax_shipping_pirce_type_is_net"
-                                                id="wc_billingo_tax_shipping_pirce_type_is_net" type="checkbox" class="sr-only peer"
-                                                value="1" {% if tax_shipping_pirce_type_is_net ==1 %}checked="checked" {% endif %} />
-                                            <div
-                                                class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600">
-                                            </div>
+                                        <label for="wc_billingo_fee_vat_follow_order" class="relative inline-flex items-center cursor-pointer">
+                                            <input name="wc_billingo_fee_vat_follow_order" id="wc_billingo_fee_vat_follow_order" type="checkbox" class="sr-only peer" value="1" {% if fee_vat_follow_order==1 %}checked="checked" {% endif %} />
+                                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"> </div>
                                         </label>
-                                       
                                     </fieldset>
+                                </td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row" class="billingo-tax-settings-field-container">
+                                    <label class="billingo-field-name-right-column" for="wc_billingo_sku_vat_enabled">{{ 'Külön ÁFA kulcs meghatározott cikkszámú termékekre'|esc_html_translate }}</label>
+                                    <p class="billingo-field-description-italic-right-column" style="height: auto;">{{ 'Bekapcsolva a lent megadott cikkszámú termékek (pl. DRS) a kiválasztott ÁFA kulcsot, illetve jogcímet (pl. TAM) kapják. Ez az általános ÁFA felülírásnál is erősebb.'|esc_html_translate }}</p>
+                                </th>
+                                <td class="forminp-checkbox billingo-right-column-checkbox-aligner">
+                                    <fieldset>
+                                        <label for="wc_billingo_sku_vat_enabled" class="relative inline-flex items-center cursor-pointer">
+                                            <input name="wc_billingo_sku_vat_enabled" id="wc_billingo_sku_vat_enabled" type="checkbox" class="sr-only peer" value="1" {% if sku_vat_enabled==1 %}checked="checked" {% endif %} />
+                                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"> </div>
+                                        </label>
+                                    </fieldset>
+                                </td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row" class="billingo-tax-settings-field-container">
+                                    <label class="billingo-field-name-right-column" for="wc_billingo_sku_vat_skus">{{ 'Érintett cikkszámok'|esc_html_translate }}</label>
+                                    <p class="billingo-field-description-italic-right-column" style="height: auto;">{{ 'Vesszővel elválasztva (pl. DRS, KOD-*). A cikkszámnak teljesen egyeznie kell, kis- és nagybetűre nem érzékeny; a * tetszőleges karaktereket helyettesít.'|esc_html_translate }}</p>
+                                </th>
+                                <td class="forminp forminp-text">
+                                    <input name="wc_billingo_sku_vat_skus" id="wc_billingo_sku_vat_skus" type="text" style="width:350px;" value="{{ sku_vat_skus|esc_attr }}" />
+                                </td>
+                            </tr>
+                            <tr valign="top">
+                                <th scope="row" class="billingo-tax-settings-field-container">
+                                    <label class="billingo-field-name-right-column" for="wc_billingo_sku_vat_code">{{ 'ÁFA kulcs / jogcím ezekre a termékekre'|esc_html_translate }}</label>
+                                    <p class="billingo-field-description-italic-right-column" style="height: auto;">{{ 'A jogcím a kulccsal együtt kerül a számlára (pl. TAM = tárgyi adómentes).'|esc_html_translate }}</p>
+                                </th>
+                                <td class="forminp forminp-select">
+                                    <select class="billingo-tax-settings-select" name="wc_billingo_sku_vat_code" id="wc_billingo_sku_vat_code" style="width:350px;">
+                                        {% for id, name in sku_vat_options %}
+                                        <option value="{{ id }}" {% if id==selected_sku_vat_code %}selected="selected" {% endif %}>{{ name }}</option>
+                                        {% endfor %}
+                                    </select>
                                 </td>
                             </tr>
                         </tbody>

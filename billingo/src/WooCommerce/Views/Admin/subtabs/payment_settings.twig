@@ -248,7 +248,7 @@
                         <td>
                             <select class="billingo-payment-methods-table-select" name="billingo_payment_settings[{{ method.key|esc_attr }}][billingo_payment_method]"
                                 style="width: 100%;">
-                                <option> {{ '-- Válassz! --' | esc_html_translate }}</option>
+                                <option value="">{{ '-- Válassz! --' | esc_html_translate }}</option>
                                 {% for id, name in billingo_payment_methods %}
                                 <option value="{{ id|esc_attr }}" {% if id==method.bpm %}selected="selected" {% endif %}>{{ name|esc_html_translate }}</option>
                                 {% endfor %}

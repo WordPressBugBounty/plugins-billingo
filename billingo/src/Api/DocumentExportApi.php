@@ -49,7 +49,7 @@ class DocumentExportApi extends BillingoApi
      * @param  string|null  $outputFile
      * @return DocumentExportApi
      */
-    public function download(int $id, string $outputFile = null): self
+    public function download(int $id, ?string $outputFile = null): self
     {
 
         $this->apiContext

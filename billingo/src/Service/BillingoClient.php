@@ -17,7 +17,7 @@ use App\Billingo\Api\UtilApi;
 
 class BillingoClient
 {
-    public function __construct(string $apiKey = null)
+    public function __construct(?string $apiKey = null)
     {
         if (is_null($apiKey)) {
             $config = require __DIR__ . '/../config.php';

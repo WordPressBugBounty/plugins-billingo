@@ -1,9 +1,9 @@
 <?php
 /**
  * Plugin Name: Billingo Official for WooCommerce
- * Version: 4.3.4
+ * Version: 4.3.5
  * Requires at least: 6.8
- * Requires PHP: 8.1
+ * Requires PHP: 8.2
  * License: GPL v2 or later
  * Description: Fontos tudnivaló a frissítés előtt: A 4.0-s verzió új működésre áll át – a meglévő beállítások nem kerülnek át automatikusan. Frissítés után az összes pluginbeállítás újra konfigurálást igényel. Ha frissítés történik, a számlázás csak akkor folytatható, ha a beállításokat újra végigviszed. Érdemes előtte egy képernyőfotót készíteni a jelenlegi beállításokról.
  * Author: Billingo Zrt. <hello@billingo.hu>
@@ -12,8 +12,8 @@
 
  */
 
-if (version_compare(PHP_VERSION, '8.1', '<')) {
-    wp_die('A Billingo új 4.0-as verziójú modul használatához legalább PHP 8.1 verzió szükséges.');
+if (version_compare(PHP_VERSION, '8.2', '<')) {
+    wp_die('A Billingo új 4.0-as verziójú modul használatához legalább PHP 8.2 verzió szükséges.');
 }
 
 // Exit if accessed directly
@@ -29,6 +29,14 @@ require_once BILLINGO__PLUGIN_DIR . 'vendor/autoload.php';
 use App\Billingo\WooCommerce\Helpers\WC_Billingo_Admin_Helper;
 use App\Billingo\WooCommerce\Helpers\WC_Billingo_Helper;
 use App\Billingo\WooCommerce\Repositories\Billingo_Repositroy;
+
+// HPOS (egyéni rendelés-táblák) kompatibilitás: a bővítmény a rendelés-adatokat a WooCommerce rendelés-API-n át éri el,
+// a rendelés-szerkesztő doboza és a rendeléslista oszlopa mindkét tárolási módot kezeli.
+add_action('before_woocommerce_init', function () {
+    if (class_exists(\Automattic\WooCommerce\Utilities\FeaturesUtil::class)) {
+        \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility('custom_order_tables', __FILE__, true);
+    }
+});
 
 register_activation_hook(__FILE__, [Billingo_Repositroy::class, 'install']);
 register_activation_hook(__FILE__, 'billingo_plugin_activated');
@@ -67,6 +75,8 @@ function billingo_plugin_updated($upgrader_object, $options) {
     }
 }
 
+// Táblasémát verzió alapján, minden webhelyen (multisite) és minden frissítés után rendbe tesz
+add_action('init', [Billingo_Repositroy::class, 'maybeUpgrade'], 5);
 add_action('init', [WC_Billingo_Helper::class, 'init']);
 
 if (is_admin()) {

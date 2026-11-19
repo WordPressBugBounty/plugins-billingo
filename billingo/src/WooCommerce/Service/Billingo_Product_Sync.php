@@ -139,8 +139,10 @@ class Billingo_Product_Sync
         }
         if (empty($ean)) {
             try {
-                $ean = $product->get_global_unique_id();
-            } catch (\Exception $e) {
+                // A get_global_unique_id() csak az újabb WooCommerce-ben létezik: régebbin Error-t dobna,
+                // amit az Exception-t elfogó catch nem fogna meg, és a termékszinkron összeomlana.
+                $ean = method_exists($product, 'get_global_unique_id') ? $product->get_global_unique_id() : null;
+            } catch (\Throwable $e) {
                 Billingo_Logger::error("EAN nem található: " . $e->getMessage());
             }
         }
@@ -266,6 +268,17 @@ class Billingo_Product_Sync
             $sku = $productData['sku'] ?? 'ismeretlen';
             $productName = $productData['name'] ?? 'ismeretlen nevű';
             
+            $isExistingProduct = $existingProduct !== null
+                && isset($existingProduct->sku)
+                && trim(strtolower($existingProduct->sku)) === trim(strtolower($sku));
+
+            // A Billingo termék-frissítése PUT: ami nincs a kérésben, azt a Billingo törli/nullázza.
+            // Meglévő terméknél ezért a Billingóban lévő adatokból indulunk ki, hogy a készletkezelés
+            // (is_manage), a beszerzési ár és a többi, csak a Billingóban kezelt mező ne vesszen el.
+            if ($isExistingProduct) {
+                $productData = $this->mergeWithExistingProduct($existingProduct, $productData);
+            }
+
             // Objektum létrehozása a Product modellel
             $productObj = new Product($productData);
             
@@ -281,7 +294,7 @@ class Billingo_Product_Sync
             
             // A BillingoCollection objektum
             //Billingo_Logger::info("sku értékek összehasonlítása if előtt: " . $existingProduct->sku . "==" . $sku);
-            if ($existingProduct !== null && isset($existingProduct->sku) && trim(strtolower($existingProduct->sku)) === trim(strtolower($sku))) {
+            if ($isExistingProduct) {
                 // Meglévő termék frissítése
         
                 $productId = $existingProduct->id;
@@ -364,6 +377,65 @@ class Billingo_Product_Sync
         }
     }
 
+
+    /**
+     * Meglévő Billingo terméknél a PUT-os frissítés előtt összefésüli a Billingóban lévő adatokat
+     * a WooCommerce-ből jövőkkel. A Billingóban kezelt mezők (készletkezelés, beszerzési ár,
+     * nettó egységár, főkönyvi adatok, jogcím) a Billingo-beli értéküket kapják vissza, mert a
+     * WooCommerce nem ismeri őket — a korábbi működés ezeket kikapcsolta/lenullázta.
+     */
+    private function mergeWithExistingProduct(object $existingProduct, array $wcData): array
+    {
+        $existing = method_exists($existingProduct, 'toArray') ? $existingProduct->toArray() : [];
+
+        // Az üres értékeket nem küldjük vissza, a gross_unit_price a net ár számított párja,
+        // az id pedig az URL-ben van.
+        $merged = array_filter(
+            $existing,
+            static fn($value) => $value !== null && $value !== ''
+        );
+        unset($merged['id'], $merged['gross_unit_price']);
+
+        // Ezeket a WooCommerce-ből szinkronizáljuk, de csak ha van értékük, hogy egy üres
+        // WooCommerce mező ne törölje a Billingóban megadott adatot.
+        foreach (['name', 'comment', 'currency', 'vat', 'unit', 'sku', 'ean'] as $key) {
+            if (isset($wcData[$key]) && $wcData[$key] !== '') {
+                $merged[$key] = $wcData[$key];
+            }
+        }
+
+        // A beszerzési árat csak akkor írjuk át, ha a WooCommerce tényleg ad érvényes értéket
+        // (pl. önköltség-bővítményből), különben a Billingo-beli marad.
+        if (isset($wcData['purchase_price']) && is_numeric($wcData['purchase_price']) && (float)$wcData['purchase_price'] > 0) {
+            $merged['purchase_price'] = (float)$wcData['purchase_price'];
+        }
+
+        // Adattörlő kód: csak akkor, ha a beállításokban meg van adva a hozzá tartozó attribútum.
+        if (get_option('wc_billingo_is_generate_erase_code', false) && isset($wcData['is_generate_erase_code'])) {
+            $merged['is_generate_erase_code'] = (bool)$wcData['is_generate_erase_code'];
+        }
+
+        // Ha a Billingo válasza nem tartalmazta a kötelező mezőket, a WooCommerce-es értékkel pótoljuk.
+        foreach (['name', 'currency', 'vat', 'unit'] as $required) {
+            if (!isset($merged[$required]) && isset($wcData[$required])) {
+                $merged[$required] = $wcData[$required];
+            }
+        }
+
+        // net_unit_price: a Billingo-beli marad; csak akkor vesszük át a WooCommerce-ből, ha a
+        // Billingo terméknek nincs ára.
+        if (!isset($merged['net_unit_price']) && isset($wcData['net_unit_price'])) {
+            $merged['net_unit_price'] = $wcData['net_unit_price'];
+        }
+
+        // Az is_manage kifejezetten nem a WooCommerce-ből jön (a készletet lehet, hogy csak a
+        // Billingóban vezetik) — a Billingo-beli érték marad.
+        Billingo_Logger::info('Termék összefésülve a Billingo-beli adatokkal (is_manage: '
+            . var_export($merged['is_manage'] ?? null, true) . ', purchase_price: '
+            . var_export($merged['purchase_price'] ?? null, true) . ')');
+
+        return $merged;
+    }
 
     private function isProductNeedsEraseCode($productId): bool
     {

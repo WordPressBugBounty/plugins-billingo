@@ -416,6 +416,43 @@ jQuery(document).ready(function ($) {
         });
     });
 
+    // Számlázás kikapcsolása az adott rendeléshez: azonnal mentődik (nem kell a rendelés Frissítés gombja),
+    // az oldal újratöltése nélkül mutatja/rejti a bizonylatkészítő részt.
+    jQuery("#wc_billingo_toggle_invoicing").on("change", function () {
+        let checkbox = jQuery(this);
+        let disabled = checkbox.is(":checked");
+
+        let data = {
+            action: "wc_billingo_toggle_invoicing",
+            nonce: checkbox.data("nonce"),
+            order: checkbox.data("order"),
+            disabled: disabled ? "1" : "0"
+        };
+
+        checkbox.prop("disabled", true);
+
+        jQuery.post(ajaxurl, data, function (response) {
+            checkbox.prop("disabled", false);
+
+            if (response && response.success && response.data && !response.data.error) {
+                jQuery("#wc_billingo_generate_area").toggle(!disabled);
+                jQuery("#wc_billingo_disabled_notice").toggle(disabled);
+                return;
+            }
+
+            // Sikertelen mentés: visszaállítjuk a kapcsolót, hogy ne hazudjon az állapotról.
+            checkbox.prop("checked", !disabled);
+            let message = response && response.data && response.data.messages
+                ? response.data.messages.join(" ")
+                : "A mentés nem sikerült.";
+            window.alert(message);
+        }).fail(function () {
+            checkbox.prop("disabled", false);
+            checkbox.prop("checked", !disabled);
+            window.alert("A mentés nem sikerült.");
+        });
+    });
+
     jQuery("#wc_billingo_check_payment").click(function (e) {
         e.preventDefault();
         let nonce = jQuery(this).data("nonce");

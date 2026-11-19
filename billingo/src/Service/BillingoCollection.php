@@ -19,7 +19,7 @@ class BillingoCollection
         }
     }
 
-    public function get(int $index = null): mixed
+    public function get(?int $index = null): mixed
     {
         return ($index === null || !isset($this->collection[$index - 1]))
             ? $this->collection

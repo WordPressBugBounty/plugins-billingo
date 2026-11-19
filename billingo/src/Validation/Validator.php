@@ -105,7 +105,7 @@ abstract class Validator implements ValidableInterface
         return $this->errors;
     }
 
-    public function setErrors(BillingoErrorEnum $type, array $errors = null): void
+    public function setErrors(BillingoErrorEnum $type, ?array $errors = null): void
     {
         if (is_null($this->getErrors())) {
             $this->errors = new BillingoError($type, $errors);

@@ -12,7 +12,7 @@ class Billingo_Connection_Tester
      * @param string|null $apiKey Az API kulcs amit tesztelni szeretnénk
      * @return array Eredmény tömb három lehetséges állapottal: 'not_configured', 'error', 'success'
      */
-    public static function testConnection(string $apiKey = null): string
+    public static function testConnection(?string $apiKey = null): string
     {
         if (empty($apiKey)) {
             $apiKey = get_option('wc_billingo_api_key', '');

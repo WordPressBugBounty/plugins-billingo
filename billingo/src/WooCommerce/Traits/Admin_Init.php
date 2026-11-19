@@ -425,6 +425,7 @@ trait Admin_Init
                 'wcData' => $wcData,
                 'allDocuments' => $processedDocuments,
                 'manualIdCheckEnabled' => wcFlexibleIsTrue(get_option('wc_billingo_manual_id_check_enabled')),
+                'invoicingDisabled' => \App\Billingo\WooCommerce\Service\Billingo_Document_Generator::isInvoicingDisabledForOrder($order_id),
         ]);
     }
 
@@ -778,8 +779,8 @@ trait Admin_Init
                     background: #bbb !important;
                     transform: scale(1.1) !important;
                 }
-                /* Ensure proper alignment with status mark */
-                .order-status {
+                /* Ensure proper alignment with status mark (csak a WooCommerce saját <mark> jelölője: az .order-status osztályt más bővítmények is használják) */
+                mark.order-status {
                     display: inline-block;
                     vertical-align: middle;
                 }
@@ -831,8 +832,8 @@ trait Admin_Init
                     background: #bbb !important;
                     transform: scale(1.1) !important;
                 }
-                /* Ensure proper alignment with status mark */
-                .order-status {
+                /* Ensure proper alignment with status mark (csak a WooCommerce saját <mark> jelölője: az .order-status osztályt más bővítmények is használják) */
+                mark.order-status {
                     display: inline-block;
                     vertical-align: middle;
                 }
@@ -852,7 +853,7 @@ trait Admin_Init
                     display: inline-block !important;
                     vertical-align: middle;
                 }
-                .order_status.small-screen-only .order-status {
+                .order_status.small-screen-only mark.order-status {
                     display: inline-block;
                     vertical-align: middle;
                 }
